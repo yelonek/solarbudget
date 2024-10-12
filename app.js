@@ -21,7 +21,7 @@ async function fetchPSEData(date) {
   const response = await axios.get(
     `https://api.raporty.pse.pl/api/rce-pln?$filter=${encodedFilter}`
   );
-  return response.data;
+  return response.data.value;
 }
 
 async function createChart() {
@@ -30,28 +30,33 @@ async function createChart() {
     const currentDate = new Date();
     const pseData = await fetchPSEData(currentDate);
 
-    const labels = solcastData.map((d) =>
-      new Date(d.period_end).toLocaleString()
-    );
-    const productionData = solcastData.map((d) => d.pv_estimate);
-    const priceData = pseData.map((d) => d.price);
+    const labels = pseData.map((d) => moment(d.udtczas));
+    const productionData = solcastData.map((d) => ({
+      x: moment(d.period_end),
+      y: d.pv_estimate,
+    }));
+    const priceData = pseData.map((d) => ({
+      x: moment(d.udtczas),
+      y: d.rce_pln,
+    }));
 
     const ctx = document.getElementById("energyChart").getContext("2d");
     new Chart(ctx, {
       type: "line",
       data: {
-        labels: labels,
         datasets: [
           {
             label: "Energy Production (kWh)",
             data: productionData,
             borderColor: "rgb(75, 192, 192)",
+            yAxisID: "y-production",
             tension: 0.1,
           },
           {
             label: "Energy Price (PLN/MWh)",
             data: priceData,
             borderColor: "rgb(255, 99, 132)",
+            yAxisID: "y-price",
             tension: 0.1,
           },
         ],
@@ -63,6 +68,34 @@ async function createChart() {
             type: "time",
             time: {
               unit: "hour",
+              displayFormats: {
+                hour: "YYYY-MM-DD HH:mm",
+              },
+            },
+            title: {
+              display: true,
+              text: "Time",
+            },
+          },
+          "y-production": {
+            type: "linear",
+            display: true,
+            position: "left",
+            title: {
+              display: true,
+              text: "Energy Production (kWh)",
+            },
+          },
+          "y-price": {
+            type: "linear",
+            display: true,
+            position: "right",
+            title: {
+              display: true,
+              text: "Energy Price (PLN/MWh)",
+            },
+            grid: {
+              drawOnChartArea: false,
             },
           },
         },
