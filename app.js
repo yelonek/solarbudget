@@ -30,10 +30,18 @@ async function createChart() {
     const currentDate = new Date();
     const pseData = await fetchPSEData(currentDate);
 
-    const labels = pseData.map((d) => moment(d.udtczas));
-    const productionData = solcastData.map((d) => ({
+    const labels = solcastData.map((d) => moment(d.period_end));
+    const productionData10 = solcastData.map((d) => ({
+      x: moment(d.period_end),
+      y: d.pv_estimate10,
+    }));
+    const productionData50 = solcastData.map((d) => ({
       x: moment(d.period_end),
       y: d.pv_estimate,
+    }));
+    const productionData90 = solcastData.map((d) => ({
+      x: moment(d.period_end),
+      y: d.pv_estimate90,
     }));
     const priceData = pseData.map((d) => ({
       x: moment(d.udtczas),
@@ -44,20 +52,35 @@ async function createChart() {
     new Chart(ctx, {
       type: "line",
       data: {
+        labels: labels,
         datasets: [
           {
-            label: "Energy Production (kWh)",
-            data: productionData,
-            borderColor: "rgb(75, 192, 192)",
+            label: "Energy Production 10th Percentile (kWh)",
+            data: productionData10,
+            borderColor: "rgba(75, 192, 192, 0.5)",
+            fill: false,
             yAxisID: "y-production",
-            tension: 0.1,
+          },
+          {
+            label: "Energy Production 50th Percentile (kWh)",
+            data: productionData50,
+            borderColor: "rgb(75, 192, 192)",
+            fill: false,
+            yAxisID: "y-production",
+          },
+          {
+            label: "Energy Production 90th Percentile (kWh)",
+            data: productionData90,
+            borderColor: "rgba(75, 192, 192, 0.8)",
+            fill: false,
+            yAxisID: "y-production",
           },
           {
             label: "Energy Price (PLN/MWh)",
             data: priceData,
             borderColor: "rgb(255, 99, 132)",
+            fill: false,
             yAxisID: "y-price",
-            tension: 0.1,
           },
         ],
       },
@@ -97,6 +120,15 @@ async function createChart() {
             grid: {
               drawOnChartArea: false,
             },
+          },
+        },
+        plugins: {
+          tooltip: {
+            mode: "index",
+            intersect: false,
+          },
+          legend: {
+            position: "top",
           },
         },
       },
