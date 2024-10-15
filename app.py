@@ -8,20 +8,19 @@ app = Flask(__name__)
 def index():
     return render_template('index.html')
 
-@app.route('/api/data')
-def get_data():
+@app.route('/api/solcast')
+def get_solcast():
     solcast_data = get_cached_data('solcast') or get_solcast_data()
-    pse_data = get_cached_data('pse') or get_pse_data()
-    
     if solcast_data:
         cache_data('solcast', solcast_data)
+    return jsonify(solcast_data)
+
+@app.route('/api/pse')
+def get_pse():
+    pse_data = get_cached_data('pse') or get_pse_data()
     if pse_data:
         cache_data('pse', pse_data)
-    
-    return jsonify({
-        'solcast': solcast_data,
-        'pse': pse_data
-    })
+    return jsonify(pse_data)
 
 if __name__ == '__main__':
     init_db()
