@@ -10,6 +10,28 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+import logging
+from logging.handlers import RotatingFileHandler
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
+
+# Set up file handler
+file_handler = RotatingFileHandler(
+    "logs/app.log", maxBytes=1024 * 1024, backupCount=5  # 1MB
+)
+file_handler.setFormatter(
+    logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+)
+
+# Get logger
+logger = logging.getLogger("solarbudget")
+logger.addHandler(file_handler)
 
 load_dotenv()
 
@@ -26,6 +48,7 @@ def get_solcast_data():
     if "forecast" in solcast_cache:
         cached_data = solcast_cache["forecast"]
         if not cached_data.empty:
+            logger.info("Using cached Solcast data")
             return cached_data
 
     # If no valid cache, try to fetch new data
@@ -33,6 +56,7 @@ def get_solcast_data():
     url = f"https://api.solcast.com.au/rooftop_sites/{site_id}/forecasts"
 
     try:
+        logger.info("Fetching new Solcast data")
         response = requests.get(
             url,
             headers={
@@ -48,22 +72,25 @@ def get_solcast_data():
 
         df = pd.DataFrame(data["forecasts"])
         df["period_end"] = pd.to_datetime(df["period_end"])
-        df = df.infer_objects(copy=False)  # Fix deprecation warning
+        df = df.infer_objects()  # Fix deprecation warning
         df = df.set_index("period_end").resample("15min").interpolate()
 
         solcast_cache["forecast"] = df
+        logger.info("Successfully fetched and cached Solcast data")
         return df
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching Solcast data: {e}")
+        logger.error(f"Error fetching Solcast data: {e}")
         # If we have cached data, return it even if expired
         if "forecast" in solcast_cache:
+            logger.info("Using expired cached Solcast data due to API error")
             return solcast_cache["forecast"]
         return pd.DataFrame()
 
 
 def get_pse_prices():
     if "prices" in pse_cache:
+        logger.info("Using cached PSE data")
         return pse_cache["prices"]
 
     current_time = datetime.now()
@@ -73,16 +100,22 @@ def get_pse_prices():
     try:
         # Use the correct API endpoint for RCE (Rynkowa cena energii)
         url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{today}'"
+        logger.info(f"Fetching PSE data for {today}")
         response = requests.get(url, headers={"Accept": "application/json"})
         response.raise_for_status()
 
         data = response.json()
+        logger.debug(f"PSE API response: {data}")  # Log raw response for debugging
         prices = []
 
+        # PSE API returns a list of dictionaries with fields:
+        # doba: date
+        # udtczas_oreb: time
+        # rce_pln: price
         for item in data:
             prices.append(
                 {
-                    "datetime": f"{item['business_date']}-{item['udtczas_oreb']}:00",
+                    "datetime": f"{item['doba']}-{item['udtczas_oreb']}:00",
                     "price": float(item["rce_pln"]),
                 }
             )
@@ -91,39 +124,47 @@ def get_pse_prices():
             tomorrow_url = (
                 f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{tomorrow}'"
             )
+            logger.info(f"Fetching PSE data for {tomorrow}")
             tomorrow_response = requests.get(
                 tomorrow_url, headers={"Accept": "application/json"}
             )
             tomorrow_response.raise_for_status()
 
             tomorrow_data = tomorrow_response.json()
+            logger.debug(
+                f"PSE API tomorrow response: {tomorrow_data}"
+            )  # Log raw response for debugging
             for item in tomorrow_data:
                 prices.append(
                     {
-                        "datetime": f"{item['business_date']}-{item['udtczas_oreb']}:00",
+                        "datetime": f"{item['doba']}-{item['udtczas_oreb']}:00",
                         "price": float(item["rce_pln"]),
                     }
                 )
 
         pse_cache["prices"] = prices
+        logger.info(f"Successfully fetched and cached {len(prices)} PSE price records")
         return prices
 
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching PSE data: {e}")
+        logger.error(f"Error fetching PSE data: {e}")
         return []
 
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    logger.info("Processing index page request")
     solar_data = get_solcast_data()
     prices = get_pse_prices()
 
     if solar_data.empty:
+        logger.error("No solar data available")
         raise HTTPException(
             status_code=500, detail="Unable to fetch solar forecast data"
         )
 
     if not prices:
+        logger.error("No PSE prices available")
         raise HTTPException(status_code=500, detail="Unable to fetch price data")
 
     solar_data_dict = solar_data.reset_index().to_dict("records")
@@ -136,6 +177,7 @@ async def index(request: Request):
         for timestamp, value in daily_totals.items()
     }
 
+    logger.info("Successfully prepared data for template")
     return templates.TemplateResponse(
         "index.html",
         {
@@ -150,4 +192,5 @@ async def index(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
+    logger.info("Starting Solar Budget application")
     uvicorn.run(app, host="0.0.0.0", port=8000)
