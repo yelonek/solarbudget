@@ -105,20 +105,32 @@ def get_pse_prices():
         response.raise_for_status()
 
         data = response.json()
-        logger.debug(f"PSE API response: {data}")  # Log raw response for debugging
-        prices = []
+        logger.debug(f"PSE API response type: {type(data)}")
+        logger.debug(f"PSE API response: {data}")
 
-        # PSE API returns a list of dictionaries with fields:
-        # doba: date
-        # udtczas_oreb: time
-        # rce_pln: price
-        for item in data:
-            prices.append(
-                {
-                    "datetime": f"{item['doba']}-{item['udtczas_oreb']}:00",
-                    "price": float(item["rce_pln"]),
-                }
-            )
+        # PSE API returns a dictionary with 'value' key containing the list
+        if not isinstance(data, dict) or "value" not in data:
+            logger.error(f"Unexpected PSE API response format: {type(data)}")
+            return []
+
+        prices = []
+        for item in data["value"]:
+            try:
+                # Log each item for debugging
+                logger.debug(f"Processing PSE item: {item}")
+                if not isinstance(item, dict):
+                    logger.error(f"Unexpected item format: {type(item)}")
+                    continue
+
+                prices.append(
+                    {
+                        "datetime": f"{item['doba']}-{item['udtczas_oreb']}:00",
+                        "price": float(item["rce_pln"]),
+                    }
+                )
+            except (KeyError, ValueError) as e:
+                logger.error(f"Error processing PSE item: {e}, item: {item}")
+                continue
 
         if current_time.hour >= 16:
             tomorrow_url = (
@@ -131,16 +143,37 @@ def get_pse_prices():
             tomorrow_response.raise_for_status()
 
             tomorrow_data = tomorrow_response.json()
-            logger.debug(
-                f"PSE API tomorrow response: {tomorrow_data}"
-            )  # Log raw response for debugging
-            for item in tomorrow_data:
-                prices.append(
-                    {
-                        "datetime": f"{item['doba']}-{item['udtczas_oreb']}:00",
-                        "price": float(item["rce_pln"]),
-                    }
+            logger.debug(f"PSE API tomorrow response type: {type(tomorrow_data)}")
+            logger.debug(f"PSE API tomorrow response: {tomorrow_data}")
+
+            if not isinstance(tomorrow_data, dict) or "value" not in tomorrow_data:
+                logger.error(
+                    f"Unexpected PSE API tomorrow response format: {type(tomorrow_data)}"
                 )
+                return prices
+
+            for item in tomorrow_data["value"]:
+                try:
+                    logger.debug(f"Processing PSE tomorrow item: {item}")
+                    if not isinstance(item, dict):
+                        logger.error(f"Unexpected tomorrow item format: {type(item)}")
+                        continue
+
+                    prices.append(
+                        {
+                            "datetime": f"{item['doba']}-{item['udtczas_oreb']}:00",
+                            "price": float(item["rce_pln"]),
+                        }
+                    )
+                except (KeyError, ValueError) as e:
+                    logger.error(
+                        f"Error processing PSE tomorrow item: {e}, item: {item}"
+                    )
+                    continue
+
+        if not prices:
+            logger.error("No valid price data found in PSE API response")
+            return []
 
         pse_cache["prices"] = prices
         logger.info(f"Successfully fetched and cached {len(prices)} PSE price records")
