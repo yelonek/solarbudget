@@ -1,7 +1,9 @@
-flask
-requests
-pandas
-cachetools
-python-dotenv
-SQLAlchemy
-psycopg2-binary
+fastapi==0.109.2
+uvicorn==0.27.1
+python-dotenv==1.0.1
+requests==2.31.0
+pandas==2.2.0
+cachetools==5.3.2
+jinja2==3.1.3
+python-multipart==0.0.9
+tqdm==4.66.2
