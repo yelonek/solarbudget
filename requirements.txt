@@ -2,4 +2,6 @@ flask
 requests
 pandas
 cachetools
-python-dotenv 
+python-dotenv
+SQLAlchemy
+psycopg2-binary

@@ -1,4 +1,4 @@
-This app is a simple web app that summarizes solar energy production forecast.
+This FASTAPI server backed web app summarizes solar energy production forecast.
 
 It uses Solcast API to get the solar energy production forecast.
 The API gives information about solar energy production in kW in 30-minute intervals.
@@ -18,3 +18,5 @@ The data does not change, so it can be cached.
 The data for the next day is available after 16:00 of the current day.
 
 The visualization shows the value of the energy price in PLN for each 15-minute interval.
+
+You can run this application as dockerized container.
