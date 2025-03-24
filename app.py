@@ -156,7 +156,44 @@ def get_pse_prices():
             datetime.utcnow() - latest_data.timestamp
         ) < timedelta(hours=24):
             logger.info("Using cached PSE data from database")
-            return latest_data.data
+            # Convert cached data to proper format
+            try:
+                prices = []
+                for item in latest_data.data:
+                    try:
+                        # Parse the datetime string
+                        dt_str = item["datetime"]
+                        if " - " in dt_str:  # Handle old format
+                            # Split into date and time parts
+                            parts = dt_str.split(
+                                "-", 3
+                            )  # ['2025', '03', '24', '00:00 - 00:15:00']
+                            date_str = "-".join(parts[:3])  # '2025-03-24'
+                            time_str = parts[3].split(" - ")[0].strip()  # '00:00'
+
+                            # Parse the complete datetime
+                            dt = datetime.strptime(
+                                f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
+                            )
+                        else:  # Handle ISO format
+                            dt = datetime.fromisoformat(dt_str)
+
+                        prices.append(
+                            {"datetime": dt.isoformat(), "price": item["price"]}
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Error parsing cached datetime: {e}, item: {item}"
+                        )
+                        continue
+
+                if prices:  # Only return processed data if we have valid entries
+                    return prices
+                logger.error("No valid prices after processing cached data")
+                return latest_data.data  # Return original data if no valid entries
+            except Exception as e:
+                logger.error(f"Error processing cached data: {e}")
+                return latest_data.data  # Return original data if processing fails
 
         # If no recent data, fetch new data
         logger.info("Fetching new PSE data")
@@ -165,17 +202,14 @@ def get_pse_prices():
         tomorrow = (current_time + timedelta(days=1)).strftime("%Y-%m-%d")
 
         try:
-            # Use the correct API endpoint for RCE (Rynkowa cena energii)
             url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{today}'"
             logger.info(f"Fetching PSE data for {today}")
             response = requests.get(url, headers={"Accept": "application/json"})
             response.raise_for_status()
 
             data = response.json()
-            logger.debug(f"PSE API response type: {type(data)}")
             logger.debug(f"PSE API response: {data}")
 
-            # PSE API returns a dictionary with 'value' key containing the list
             if not isinstance(data, dict) or "value" not in data:
                 logger.error(f"Unexpected PSE API response format: {type(data)}")
                 if latest_data is not None:
@@ -183,18 +217,31 @@ def get_pse_prices():
                     return latest_data.data
                 return []
 
+            def parse_pse_datetime(date_str, time_str):
+                """Parse PSE datetime from separate date and time strings."""
+                try:
+                    # Clean time string - take only the start time if it's a range
+                    if " - " in time_str:
+                        time_str = time_str.split(" - ")[0].strip()
+
+                    # Create datetime object
+                    dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                    return dt
+                except Exception as e:
+                    logger.error(f"Error parsing datetime: {date_str} {time_str} - {e}")
+                    raise
+
             prices = []
             for item in data["value"]:
                 try:
-                    # Log each item for debugging
-                    logger.debug(f"Processing PSE item: {item}")
                     if not isinstance(item, dict):
                         logger.error(f"Unexpected item format: {type(item)}")
                         continue
 
+                    dt = parse_pse_datetime(item["doba"], item["udtczas_oreb"])
                     prices.append(
                         {
-                            "datetime": f"{item['doba']}-{item['udtczas_oreb']}:00",
+                            "datetime": dt.isoformat(),
                             "price": float(item["rce_pln"]),
                         }
                     )
@@ -211,7 +258,6 @@ def get_pse_prices():
                 tomorrow_response.raise_for_status()
 
                 tomorrow_data = tomorrow_response.json()
-                logger.debug(f"PSE API tomorrow response type: {type(tomorrow_data)}")
                 logger.debug(f"PSE API tomorrow response: {tomorrow_data}")
 
                 if not isinstance(tomorrow_data, dict) or "value" not in tomorrow_data:
@@ -222,16 +268,16 @@ def get_pse_prices():
 
                 for item in tomorrow_data["value"]:
                     try:
-                        logger.debug(f"Processing PSE tomorrow item: {item}")
                         if not isinstance(item, dict):
                             logger.error(
                                 f"Unexpected tomorrow item format: {type(item)}"
                             )
                             continue
 
+                        dt = parse_pse_datetime(item["doba"], item["udtczas_oreb"])
                         prices.append(
                             {
-                                "datetime": f"{item['doba']}-{item['udtczas_oreb']}:00",
+                                "datetime": dt.isoformat(),
                                 "price": float(item["rce_pln"]),
                             }
                         )
@@ -273,13 +319,24 @@ def calculate_energy_value(solar_data_df, prices):
     # Convert prices list to DataFrame
     prices_df = pd.DataFrame(prices)
 
-    # Fix datetime format by removing the time range part
-    prices_df["datetime"] = prices_df["datetime"].apply(lambda x: x.split(" - ")[0])
-    # Parse datetime and make it timezone-aware to match solar data
-    prices_df["datetime"] = pd.to_datetime(
-        prices_df["datetime"], format="%Y-%m-%d-%H:%M"
-    ).dt.tz_localize("UTC")
+    # Clean datetime strings - handle both formats
+    def clean_datetime(dt_str):
+        if " - " in dt_str:
+            # Handle old format with time range
+            dt_str = dt_str.split(" - ")[0]
+        return dt_str
+
+    # Clean and parse datetime
+    prices_df["datetime"] = prices_df["datetime"].apply(clean_datetime)
+    # Parse as naive datetime first, then localize to UTC
+    prices_df["datetime"] = pd.to_datetime(prices_df["datetime"]).dt.tz_localize("UTC")
     prices_df = prices_df.set_index("datetime")
+
+    # Ensure solar data is in UTC
+    if solar_data_df.index.tz is None:
+        solar_data_df.index = solar_data_df.index.tz_localize("UTC")
+    elif str(solar_data_df.index.tz) != "UTC":
+        solar_data_df.index = solar_data_df.index.tz_convert("UTC")
 
     # Resample prices to 15-min intervals to match solar data
     prices_df = prices_df.resample("15min").ffill()
@@ -330,6 +387,10 @@ async def index(request: Request):
         for timestamp, energy in daily_totals.items()
         if isinstance(timestamp, (pd.Timestamp, datetime))
     }
+
+    # Log data being sent to frontend
+    logger.info("Sample of prices data being sent to frontend:")
+    logger.info(prices[:2] if prices else "No prices data")
 
     logger.info("Successfully prepared data for template")
     return templates.TemplateResponse(

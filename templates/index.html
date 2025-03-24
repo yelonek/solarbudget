@@ -72,10 +72,27 @@
 
         // Energy Prices Chart
         const priceData = {{ prices|tojson }};
+        console.log('Price data sample:', priceData[0]); // Debug log
         new Chart(document.getElementById('priceChart'), {
             type: 'line',
             data: {
-                labels: priceData.map(p => p.datetime),
+                labels: priceData.map(p => {
+                    try {
+                        const date = new Date(p.datetime);
+                        if (isNaN(date.getTime())) {
+                            console.error('Invalid date:', p.datetime);
+                            return 'Invalid Date';
+                        }
+                        return date.toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                        });
+                    } catch (e) {
+                        console.error('Error parsing date:', p.datetime, e);
+                        return 'Invalid Date';
+                    }
+                }),
                 datasets: [{
                     label: 'Energy Price (PLN/MWh)',
                     data: priceData.map(p => p.price),
@@ -84,7 +101,12 @@
                 }]
             },
             options: {
-                responsive: true
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
             }
         });
 
