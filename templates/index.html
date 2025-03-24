@@ -52,7 +52,14 @@
         new Chart(document.getElementById('solarChart'), {
             type: 'line',
             data: {
-                labels: solarData.map(d => new Date(d.period_end).toLocaleTimeString()),
+                labels: solarData.map(d => {
+                    const date = new Date(d.period_end);
+                    return date.toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: false 
+                    });
+                }),
                 datasets: [{
                     label: 'Solar Production (kW)',
                     data: solarData.map(d => d.pv_estimate),
@@ -114,7 +121,14 @@
         new Chart(document.getElementById('valueChart'), {
             type: 'line',
             data: {
-                labels: solarData.map(d => new Date(d.period_end).toLocaleTimeString()),
+                labels: solarData.map(d => {
+                    const date = new Date(d.period_end);
+                    return date.toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: false 
+                    });
+                }),
                 datasets: [{
                     label: 'Energy Value (PLN)',
                     data: solarData.map(d => d.value),
