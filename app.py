@@ -150,13 +150,47 @@ def get_solcast_data():
 def get_pse_prices():
     session = Session()
     try:
-        # Check if we have recent data (less than 24 hours old)
+        # Check if we have recent data
         latest_data = session.query(PSEData).order_by(PSEData.timestamp.desc()).first()
-        if latest_data is not None and (
-            datetime.utcnow() - latest_data.timestamp
-        ) < timedelta(hours=24):
+        current_time = datetime.now()
+
+        def parse_pse_datetime(date_str, time_str):
+            """Parse PSE datetime from separate date and time strings."""
+            try:
+                # Clean time string - take only the start time if it's a range
+                if " - " in time_str:
+                    time_str = time_str.split(" - ")[0].strip()
+
+                # Create datetime object
+                dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                return dt
+            except Exception as e:
+                logger.error(f"Error parsing datetime: {date_str} {time_str} - {e}")
+                raise
+
+        should_fetch_new = False
+        if latest_data is not None:
+            # Check if data is from a previous day
+            if latest_data.timestamp.date() < current_time.date():
+                logger.info("Cached PSE data is from previous day, fetching new data")
+                should_fetch_new = True
+            # After 16:00, check if we have tomorrow's data
+            elif current_time.hour >= 16:
+                tomorrow = (current_time + timedelta(days=1)).date()
+                cached_dates = {
+                    datetime.fromisoformat(item["datetime"]).date()
+                    for item in latest_data.data
+                }
+                if tomorrow not in cached_dates:
+                    logger.info(
+                        "Missing tomorrow's data after 16:00, fetching new data"
+                    )
+                    should_fetch_new = True
+        else:
+            should_fetch_new = True
+
+        if not should_fetch_new:
             logger.info("Using cached PSE data from database")
-            # Convert cached data to proper format
             try:
                 prices = []
                 for item in latest_data.data:
@@ -165,19 +199,14 @@ def get_pse_prices():
                         dt_str = item["datetime"]
                         if " - " in dt_str:  # Handle old format
                             # Split into date and time parts
-                            parts = dt_str.split(
-                                "-", 3
-                            )  # ['2025', '03', '24', '00:00 - 00:15:00']
-                            date_str = "-".join(parts[:3])  # '2025-03-24'
-                            time_str = parts[3].split(" - ")[0].strip()  # '00:00'
-
-                            # Parse the complete datetime
+                            parts = dt_str.split("-", 3)
+                            date_str = "-".join(parts[:3])
+                            time_str = parts[3].split(" - ")[0].strip()
                             dt = datetime.strptime(
                                 f"{date_str} {time_str}", "%Y-%m-%d %H:%M"
                             )
                         else:  # Handle ISO format
                             dt = datetime.fromisoformat(dt_str)
-
                         prices.append(
                             {"datetime": dt.isoformat(), "price": item["price"]}
                         )
@@ -187,93 +216,41 @@ def get_pse_prices():
                         )
                         continue
 
-                if prices:  # Only return processed data if we have valid entries
+                if prices:
                     return prices
                 logger.error("No valid prices after processing cached data")
-                return latest_data.data  # Return original data if no valid entries
+                should_fetch_new = True
             except Exception as e:
                 logger.error(f"Error processing cached data: {e}")
-                return latest_data.data  # Return original data if processing fails
+                should_fetch_new = True
 
-        # If no recent data, fetch new data
-        logger.info("Fetching new PSE data")
-        current_time = datetime.now()
-        today = current_time.strftime("%Y-%m-%d")
-        tomorrow = (current_time + timedelta(days=1)).strftime("%Y-%m-%d")
+        if should_fetch_new:
+            # Fetch new data
+            logger.info("Fetching new PSE data")
+            today = current_time.strftime("%Y-%m-%d")
+            tomorrow = (current_time + timedelta(days=1)).strftime("%Y-%m-%d")
 
-        try:
-            url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{today}'"
-            logger.info(f"Fetching PSE data for {today}")
-            response = requests.get(url, headers={"Accept": "application/json"})
-            response.raise_for_status()
-
-            data = response.json()
-            logger.debug(f"PSE API response: {data}")
-
-            if not isinstance(data, dict) or "value" not in data:
-                logger.error(f"Unexpected PSE API response format: {type(data)}")
-                if latest_data is not None:
-                    logger.info("Using expired cached data due to invalid response")
-                    return latest_data.data
-                return []
-
-            def parse_pse_datetime(date_str, time_str):
-                """Parse PSE datetime from separate date and time strings."""
-                try:
-                    # Clean time string - take only the start time if it's a range
-                    if " - " in time_str:
-                        time_str = time_str.split(" - ")[0].strip()
-
-                    # Create datetime object
-                    dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-                    return dt
-                except Exception as e:
-                    logger.error(f"Error parsing datetime: {date_str} {time_str} - {e}")
-                    raise
-
-            prices = []
-            for item in data["value"]:
-                try:
-                    if not isinstance(item, dict):
-                        logger.error(f"Unexpected item format: {type(item)}")
-                        continue
-
-                    dt = parse_pse_datetime(item["doba"], item["udtczas_oreb"])
-                    prices.append(
-                        {
-                            "datetime": dt.isoformat(),
-                            "price": float(item["rce_pln"]),
-                        }
-                    )
-                except (KeyError, ValueError) as e:
-                    logger.error(f"Error processing PSE item: {e}, item: {item}")
-                    continue
-
-            if current_time.hour >= 16:
-                tomorrow_url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{tomorrow}'"
-                logger.info(f"Fetching PSE data for {tomorrow}")
-                tomorrow_response = requests.get(
-                    tomorrow_url, headers={"Accept": "application/json"}
+            try:
+                # Fetch today's data
+                url = (
+                    f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{today}'"
                 )
-                tomorrow_response.raise_for_status()
+                logger.info(f"Fetching PSE data for {today}")
+                response = requests.get(url, headers={"Accept": "application/json"})
+                response.raise_for_status()
 
-                tomorrow_data = tomorrow_response.json()
-                logger.debug(f"PSE API tomorrow response: {tomorrow_data}")
+                data = response.json()
+                logger.debug(f"PSE API response: {data}")
 
-                if not isinstance(tomorrow_data, dict) or "value" not in tomorrow_data:
-                    logger.error(
-                        f"Unexpected PSE API tomorrow response format: {type(tomorrow_data)}"
-                    )
-                    return prices
+                if not isinstance(data, dict) or "value" not in data:
+                    logger.error(f"Unexpected PSE API response format: {type(data)}")
+                    return latest_data.data if latest_data else []
 
-                for item in tomorrow_data["value"]:
+                prices = []
+                for item in data["value"]:
                     try:
                         if not isinstance(item, dict):
-                            logger.error(
-                                f"Unexpected tomorrow item format: {type(item)}"
-                            )
                             continue
-
                         dt = parse_pse_datetime(item["doba"], item["udtczas_oreb"])
                         prices.append(
                             {
@@ -282,34 +259,56 @@ def get_pse_prices():
                             }
                         )
                     except (KeyError, ValueError) as e:
-                        logger.error(
-                            f"Error processing PSE tomorrow item: {e}, item: {item}"
-                        )
+                        logger.error(f"Error processing PSE item: {e}, item: {item}")
                         continue
 
-            if not prices:
-                logger.error("No valid price data found in PSE API response")
-                if latest_data is not None:
-                    logger.info("Using expired cached data due to empty response")
-                    return latest_data.data
-                return []
+                # After 16:00, also fetch tomorrow's data
+                if current_time.hour >= 16:
+                    tomorrow_url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{tomorrow}'"
+                    logger.info(f"Fetching PSE data for {tomorrow}")
+                    tomorrow_response = requests.get(
+                        tomorrow_url, headers={"Accept": "application/json"}
+                    )
+                    tomorrow_response.raise_for_status()
 
-            # Save to database
-            new_data = PSEData(timestamp=datetime.utcnow(), data=prices)
-            session.add(new_data)
-            session.commit()
+                    tomorrow_data = tomorrow_response.json()
+                    if isinstance(tomorrow_data, dict) and "value" in tomorrow_data:
+                        for item in tomorrow_data["value"]:
+                            try:
+                                if not isinstance(item, dict):
+                                    continue
+                                dt = parse_pse_datetime(
+                                    item["doba"], item["udtczas_oreb"]
+                                )
+                                prices.append(
+                                    {
+                                        "datetime": dt.isoformat(),
+                                        "price": float(item["rce_pln"]),
+                                    }
+                                )
+                            except (KeyError, ValueError) as e:
+                                logger.error(
+                                    f"Error processing PSE tomorrow item: {e}, item: {item}"
+                                )
+                                continue
 
-            logger.info(
-                f"Successfully fetched and cached {len(prices)} PSE price records"
-            )
-            return prices
+                if not prices:
+                    logger.error("No valid price data found in PSE API response")
+                    return latest_data.data if latest_data else []
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error fetching PSE data: {e}")
-            if latest_data is not None:
-                logger.info("Using expired cached data due to API error")
-                return latest_data.data
-            return []
+                # Save to database
+                new_data = PSEData(timestamp=datetime.utcnow(), data=prices)
+                session.add(new_data)
+                session.commit()
+
+                logger.info(
+                    f"Successfully fetched and cached {len(prices)} PSE price records"
+                )
+                return prices
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching PSE data: {e}")
+                return latest_data.data if latest_data else []
 
     finally:
         session.close()
