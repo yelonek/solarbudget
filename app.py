@@ -75,7 +75,11 @@ def get_solcast_data():
             datetime.utcnow() - latest_data.timestamp
         ) < timedelta(hours=2):
             logger.info("Using cached Solcast data from database")
-            return pd.DataFrame.from_records(latest_data.data)
+            df = pd.DataFrame.from_records(latest_data.data)
+            # Convert period_end to datetime and set as index
+            df["period_end"] = pd.to_datetime(df["period_end"])
+            df = df.set_index("period_end")
+            return df
 
         # If no recent data, fetch new data
         logger.info("Fetching new Solcast data")
@@ -95,7 +99,10 @@ def get_solcast_data():
             logger.error("Invalid Solcast API response format")
             if latest_data is not None:
                 logger.info("Using expired cached data due to invalid response")
-                return pd.DataFrame.from_records(latest_data.data)
+                df = pd.DataFrame.from_records(latest_data.data)
+                df["period_end"] = pd.to_datetime(df["period_end"])
+                df = df.set_index("period_end")
+                return df
             return pd.DataFrame()
 
         # Process the data
@@ -107,7 +114,8 @@ def get_solcast_data():
         # Convert DataFrame to records with ISO format timestamps
         records = df.reset_index().to_dict(orient="records")
         for record in records:
-            record["period_end"] = record["period_end"].isoformat()
+            if isinstance(record["period_end"], pd.Timestamp):
+                record["period_end"] = record["period_end"].isoformat()
 
         # Save to database
         new_data = SolcastData(timestamp=datetime.utcnow(), data=records)
@@ -121,7 +129,10 @@ def get_solcast_data():
         logger.error(f"Error fetching Solcast data: {e}")
         if latest_data is not None:
             logger.info("Using expired cached data due to API error")
-            return pd.DataFrame.from_records(latest_data.data)
+            df = pd.DataFrame.from_records(latest_data.data)
+            df["period_end"] = pd.to_datetime(df["period_end"])
+            df = df.set_index("period_end")
+            return df
         return pd.DataFrame()
     finally:
         session.close()
@@ -239,10 +250,13 @@ async def index(request: Request):
         logger.error("No PSE prices available")
         raise HTTPException(status_code=500, detail="Unable to fetch price data")
 
+    # Convert DataFrame to records with ISO format timestamps
     solar_data_dict = solar_data.reset_index().to_dict("records")
     for record in solar_data_dict:
-        record["period_end"] = record["period_end"].isoformat()
+        if isinstance(record["period_end"], pd.Timestamp):
+            record["period_end"] = record["period_end"].isoformat()
 
+    # Calculate daily totals
     daily_totals = solar_data.resample("D")["pv_estimate"].sum() * 0.25
     daily_totals_dict = {
         timestamp.strftime("%Y-%m-%d"): value
