@@ -11,28 +11,46 @@
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold text-gray-800 mb-8">Solar Budget</h1>
         
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <!-- Solar Production Chart -->
-            <div class="bg-white rounded-lg shadow p-6">
-                <h2 class="text-xl font-semibold mb-4">Solar Production Forecast</h2>
-                <canvas id="solarChart"></canvas>
+        <!-- Today's Charts -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Today's Forecast</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="text-lg font-semibold mb-2">Solar Production</h3>
+                    <canvas id="solarChartToday"></canvas>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="text-lg font-semibold mb-2">Energy Prices</h3>
+                    <canvas id="priceChartToday"></canvas>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="text-lg font-semibold mb-2">Energy Value</h3>
+                    <canvas id="valueChartToday"></canvas>
+                </div>
             </div>
-            
-            <!-- Energy Prices Chart -->
-            <div class="bg-white rounded-lg shadow p-6">
-                <h2 class="text-xl font-semibold mb-4">Energy Prices</h2>
-                <canvas id="priceChart"></canvas>
-            </div>
+        </div>
 
-            <!-- Energy Value Chart -->
-            <div class="bg-white rounded-lg shadow p-6">
-                <h2 class="text-xl font-semibold mb-4">Energy Value</h2>
-                <canvas id="valueChart"></canvas>
+        <!-- Tomorrow's Charts -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Tomorrow's Forecast</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="text-lg font-semibold mb-2">Solar Production</h3>
+                    <canvas id="solarChartTomorrow"></canvas>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="text-lg font-semibold mb-2">Energy Prices</h3>
+                    <canvas id="priceChartTomorrow"></canvas>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="text-lg font-semibold mb-2">Energy Value</h3>
+                    <canvas id="valueChartTomorrow"></canvas>
+                </div>
             </div>
         </div>
         
         <!-- Daily Totals -->
-        <div class="mt-8 bg-white rounded-lg shadow p-6">
+        <div class="bg-white rounded-lg shadow p-6">
             <h2 class="text-xl font-semibold mb-4">Daily Production Totals</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {% for date, data in daily_totals.items() %}
@@ -47,12 +65,12 @@
     </div>
 
     <script>
-        // Solar Production Chart
-        const solarData = {{ solar_data|tojson }};
-        new Chart(document.getElementById('solarChart'), {
+        // Today's Charts
+        const solarDataToday = {{ solar_data_today|tojson }};
+        new Chart(document.getElementById('solarChartToday'), {
             type: 'line',
             data: {
-                labels: solarData.map(d => {
+                labels: solarDataToday.map(d => {
                     const date = new Date(d.period_end);
                     return date.toLocaleTimeString([], { 
                         hour: '2-digit', 
@@ -61,8 +79,8 @@
                     });
                 }),
                 datasets: [{
-                    label: 'Solar Production (kW)',
-                    data: solarData.map(d => d.pv_estimate),
+                    label: 'Solar Production Today (kW)',
+                    data: solarDataToday.map(d => d.pv_estimate),
                     borderColor: 'rgb(255, 159, 64)',
                     tension: 0.1
                 }]
@@ -77,13 +95,11 @@
             }
         });
 
-        // Energy Prices Chart
-        const priceData = {{ prices|tojson }};
-        console.log('Price data sample:', priceData[0]); // Debug log
-        new Chart(document.getElementById('priceChart'), {
+        const priceDataToday = {{ prices_today|tojson }};
+        new Chart(document.getElementById('priceChartToday'), {
             type: 'line',
             data: {
-                labels: priceData.map(p => {
+                labels: priceDataToday.map(p => {
                     try {
                         const date = new Date(p.datetime);
                         if (isNaN(date.getTime())) {
@@ -101,8 +117,8 @@
                     }
                 }),
                 datasets: [{
-                    label: 'Energy Price (PLN/MWh)',
-                    data: priceData.map(p => p.price),
+                    label: 'Energy Price Today (PLN/MWh)',
+                    data: priceDataToday.map(p => p.price),
                     borderColor: 'rgb(75, 192, 192)',
                     tension: 0.1
                 }]
@@ -117,11 +133,10 @@
             }
         });
 
-        // Energy Value Chart
-        new Chart(document.getElementById('valueChart'), {
+        new Chart(document.getElementById('valueChartToday'), {
             type: 'line',
             data: {
-                labels: solarData.map(d => {
+                labels: solarDataToday.map(d => {
                     const date = new Date(d.period_end);
                     return date.toLocaleTimeString([], { 
                         hour: '2-digit', 
@@ -130,8 +145,104 @@
                     });
                 }),
                 datasets: [{
-                    label: 'Energy Value (PLN)',
-                    data: solarData.map(d => d.value),
+                    label: 'Energy Value Today (PLN)',
+                    data: solarDataToday.map(d => d.value),
+                    borderColor: 'rgb(153, 102, 255)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Tomorrow's Charts
+        const solarDataTomorrow = {{ solar_data_tomorrow|tojson }};
+        new Chart(document.getElementById('solarChartTomorrow'), {
+            type: 'line',
+            data: {
+                labels: solarDataTomorrow.map(d => {
+                    const date = new Date(d.period_end);
+                    return date.toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: false 
+                    });
+                }),
+                datasets: [{
+                    label: 'Solar Production Tomorrow (kW)',
+                    data: solarDataTomorrow.map(d => d.pv_estimate),
+                    borderColor: 'rgb(255, 159, 64)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        const priceDataTomorrow = {{ prices_tomorrow|tojson }};
+        new Chart(document.getElementById('priceChartTomorrow'), {
+            type: 'line',
+            data: {
+                labels: priceDataTomorrow.map(p => {
+                    try {
+                        const date = new Date(p.datetime);
+                        if (isNaN(date.getTime())) {
+                            console.error('Invalid date:', p.datetime);
+                            return 'Invalid Date';
+                        }
+                        return date.toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                        });
+                    } catch (e) {
+                        console.error('Error parsing date:', p.datetime, e);
+                        return 'Invalid Date';
+                    }
+                }),
+                datasets: [{
+                    label: 'Energy Price Tomorrow (PLN/MWh)',
+                    data: priceDataTomorrow.map(p => p.price),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        new Chart(document.getElementById('valueChartTomorrow'), {
+            type: 'line',
+            data: {
+                labels: solarDataTomorrow.map(d => {
+                    const date = new Date(d.period_end);
+                    return date.toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: false 
+                    });
+                }),
+                datasets: [{
+                    label: 'Energy Value Tomorrow (PLN)',
+                    data: solarDataTomorrow.map(d => d.value),
                     borderColor: 'rgb(153, 102, 255)',
                     tension: 0.1
                 }]

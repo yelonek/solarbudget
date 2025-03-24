@@ -375,6 +375,34 @@ async def index(request: Request):
         if isinstance(record["period_end"], pd.Timestamp):
             record["period_end"] = record["period_end"].isoformat()
 
+    # Separate data into today and tomorrow
+    today = datetime.now().date()
+    tomorrow = today + timedelta(days=1)
+
+    # Filter solar data
+    solar_data_today = [
+        record
+        for record in solar_data_dict
+        if datetime.fromisoformat(record["period_end"]).date() == today
+    ]
+    solar_data_tomorrow = [
+        record
+        for record in solar_data_dict
+        if datetime.fromisoformat(record["period_end"]).date() == tomorrow
+    ]
+
+    # Filter price data
+    prices_today = [
+        price
+        for price in prices
+        if datetime.fromisoformat(price["datetime"]).date() == today
+    ]
+    prices_tomorrow = [
+        price
+        for price in prices
+        if datetime.fromisoformat(price["datetime"]).date() == tomorrow
+    ]
+
     # Calculate daily totals
     daily_totals = solar_data.resample("D")["pv_estimate"].sum() * 0.25
     daily_value_totals = solar_data.resample("D")["value"].sum()
@@ -397,8 +425,10 @@ async def index(request: Request):
         "index.html",
         {
             "request": request,
-            "solar_data": solar_data_dict,
-            "prices": prices,
+            "solar_data_today": solar_data_today,
+            "solar_data_tomorrow": solar_data_tomorrow,
+            "prices_today": prices_today,
+            "prices_tomorrow": prices_tomorrow,
             "daily_totals": daily_totals_dict,
         },
     )
