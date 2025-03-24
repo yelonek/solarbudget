@@ -11,7 +11,7 @@
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold text-gray-800 mb-8">Solar Budget</h1>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             <!-- Solar Production Chart -->
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4">Solar Production Forecast</h2>
@@ -23,16 +23,23 @@
                 <h2 class="text-xl font-semibold mb-4">Energy Prices</h2>
                 <canvas id="priceChart"></canvas>
             </div>
+
+            <!-- Energy Value Chart -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Energy Value</h2>
+                <canvas id="valueChart"></canvas>
+            </div>
         </div>
         
         <!-- Daily Totals -->
         <div class="mt-8 bg-white rounded-lg shadow p-6">
             <h2 class="text-xl font-semibold mb-4">Daily Production Totals</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {% for date, total in daily_totals.items() %}
+                {% for date, data in daily_totals.items() %}
                 <div class="bg-gray-50 p-4 rounded">
                     <div class="text-sm text-gray-600">{{ date }}</div>
-                    <div class="text-lg font-semibold">{{ "%.2f"|format(total) }} kWh</div>
+                    <div class="text-lg font-semibold">{{ "%.2f"|format(data.energy) }} kWh</div>
+                    <div class="text-sm text-gray-600">{{ "%.2f"|format(data.value) }} PLN</div>
                 </div>
                 {% endfor %}
             </div>
@@ -78,6 +85,28 @@
             },
             options: {
                 responsive: true
+            }
+        });
+
+        // Energy Value Chart
+        new Chart(document.getElementById('valueChart'), {
+            type: 'line',
+            data: {
+                labels: solarData.map(d => new Date(d.period_end).toLocaleTimeString()),
+                datasets: [{
+                    label: 'Energy Value (PLN)',
+                    data: solarData.map(d => d.value),
+                    borderColor: 'rgb(153, 102, 255)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
             }
         });
     </script>

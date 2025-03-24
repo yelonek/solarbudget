@@ -269,6 +269,30 @@ def get_pse_prices():
         session.close()
 
 
+def calculate_energy_value(solar_data_df, prices):
+    # Convert prices list to DataFrame
+    prices_df = pd.DataFrame(prices)
+
+    # Fix datetime format by removing the time range part
+    prices_df["datetime"] = prices_df["datetime"].apply(lambda x: x.split(" - ")[0])
+    # Parse datetime and make it timezone-aware to match solar data
+    prices_df["datetime"] = pd.to_datetime(
+        prices_df["datetime"], format="%Y-%m-%d-%H:%M"
+    ).dt.tz_localize("UTC")
+    prices_df = prices_df.set_index("datetime")
+
+    # Resample prices to 15-min intervals to match solar data
+    prices_df = prices_df.resample("15min").ffill()
+
+    # Calculate value (PLN)
+    # Convert MWh price to kWh and multiply by production
+    solar_data_df["value"] = (
+        solar_data_df["pv_estimate"] * prices_df["price"] / 1000 * 0.25
+    )
+
+    return solar_data_df
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     logger.info("Processing index page request")
@@ -285,6 +309,9 @@ async def index(request: Request):
         logger.error("No PSE prices available")
         raise HTTPException(status_code=500, detail="Unable to fetch price data")
 
+    # Calculate energy value
+    solar_data = calculate_energy_value(solar_data, prices)
+
     # Convert DataFrame to records with ISO format timestamps
     solar_data_dict = solar_data.reset_index().to_dict("records")
     for record in solar_data_dict:
@@ -293,9 +320,14 @@ async def index(request: Request):
 
     # Calculate daily totals
     daily_totals = solar_data.resample("D")["pv_estimate"].sum() * 0.25
+    daily_value_totals = solar_data.resample("D")["value"].sum()
+
     daily_totals_dict = {
-        timestamp.strftime("%Y-%m-%d"): value
-        for timestamp, value in daily_totals.items()
+        timestamp.strftime("%Y-%m-%d"): {
+            "energy": energy,
+            "value": daily_value_totals[timestamp],
+        }
+        for timestamp, energy in daily_totals.items()
         if isinstance(timestamp, (pd.Timestamp, datetime))
     }
 
