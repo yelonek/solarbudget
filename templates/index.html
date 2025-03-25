@@ -245,14 +245,24 @@
             
             // Calculate instantaneous and cumulative values
             let cumulative = 0;
+            let cumulative10 = 0;
+            let cumulative90 = 0;
             const valueData = solarData.map(d => {
                 const periodEnd = d.period_end.split('+')[0];
                 const matchingPrice = prices.find(p => p.datetime === periodEnd);
                 const value = matchingPrice ? (d.pv_estimate / 1000 * matchingPrice.price) : 0;
+                const value10 = matchingPrice ? (d.pv_estimate10 / 1000 * matchingPrice.price) : 0;
+                const value90 = matchingPrice ? (d.pv_estimate90 / 1000 * matchingPrice.price) : 0;
                 cumulative += value * 0.25;
+                cumulative10 += value10 * 0.25;
+                cumulative90 += value90 * 0.25;
                 return {
                     instant: value,
+                    instant10: value10,
+                    instant90: value90,
                     cumulative: cumulative,
+                    cumulative10: cumulative10,
+                    cumulative90: cumulative90,
                     time: d.period_end,
                     pv_estimate: d.pv_estimate
                 };
@@ -330,12 +340,44 @@
                         fill: true
                     },
                     {
+                        label: '10th Percentile (PLN/hr)',
+                        data: valueData.map(d => d.instant10),
+                        borderColor: 'rgba(153, 102, 255, 0.3)',
+                        borderDash: [5, 5],
+                        fill: false,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '90th Percentile (PLN/hr)',
+                        data: valueData.map(d => d.instant90),
+                        borderColor: 'rgba(153, 102, 255, 0.3)',
+                        borderDash: [5, 5],
+                        fill: false,
+                        yAxisID: 'y'
+                    },
+                    {
                         label: 'Cumulative Value (PLN)',
                         data: valueData.map(d => d.cumulative),
                         borderColor: 'rgb(54, 162, 235)',
                         backgroundColor: 'rgba(54, 162, 235, 0.5)',
                         yAxisID: 'y2',
                         fill: true
+                    },
+                    {
+                        label: 'Cumulative 10th Percentile',
+                        data: valueData.map(d => d.cumulative10),
+                        borderColor: 'rgba(54, 162, 235, 0.3)',
+                        borderDash: [5, 5],
+                        fill: false,
+                        yAxisID: 'y2'
+                    },
+                    {
+                        label: 'Cumulative 90th Percentile',
+                        data: valueData.map(d => d.cumulative90),
+                        borderColor: 'rgba(54, 162, 235, 0.3)',
+                        borderDash: [5, 5],
+                        fill: false,
+                        yAxisID: 'y2'
                     }]
                 },
                 options: options
