@@ -166,7 +166,22 @@
                     label: 'Energy Value Today (PLN)',
                     data: solarDataToday.map(d => d.value),
                     borderColor: 'rgb(153, 102, 255)',
-                    tension: 0.1
+                    backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                },
+                {
+                    label: 'Value Range (10th-90th)',
+                    data: solarDataToday.map(d => {
+                        const price = priceDataToday.find(p => 
+                            new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
+                        )?.price || 0;
+                        return (d.pv_estimate90 - d.pv_estimate10) * price / 1000 * 0.25;
+                    }),
+                    borderColor: 'rgba(153, 102, 255, 0.3)',
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false
                 }]
             },
             options: {
@@ -280,7 +295,22 @@
                     label: 'Energy Value Tomorrow (PLN)',
                     data: solarDataTomorrow.map(d => d.value),
                     borderColor: 'rgb(153, 102, 255)',
-                    tension: 0.1
+                    backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                },
+                {
+                    label: 'Value Range (10th-90th)',
+                    data: solarDataTomorrow.map(d => {
+                        const price = priceDataTomorrow.find(p => 
+                            new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
+                        )?.price || 0;
+                        return (d.pv_estimate90 - d.pv_estimate10) * price / 1000 * 0.25;
+                    }),
+                    borderColor: 'rgba(153, 102, 255, 0.3)',
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false
                 }]
             },
             options: {
