@@ -82,7 +82,25 @@
                     label: 'Solar Production Today (kW)',
                     data: solarDataToday.map(d => d.pv_estimate),
                     borderColor: 'rgb(255, 159, 64)',
-                    tension: 0.1
+                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                },
+                {
+                    label: '10th Percentile',
+                    data: solarDataToday.map(d => d.pv_estimate10),
+                    borderColor: 'rgba(255, 159, 64, 0.3)',
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: '90th Percentile',
+                    data: solarDataToday.map(d => d.pv_estimate90),
+                    borderColor: 'rgba(255, 159, 64, 0.3)',
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false
                 }]
             },
             options: {
@@ -178,7 +196,25 @@
                     label: 'Solar Production Tomorrow (kW)',
                     data: solarDataTomorrow.map(d => d.pv_estimate),
                     borderColor: 'rgb(255, 159, 64)',
-                    tension: 0.1
+                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                },
+                {
+                    label: '10th Percentile',
+                    data: solarDataTomorrow.map(d => d.pv_estimate10),
+                    borderColor: 'rgba(255, 159, 64, 0.3)',
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: '90th Percentile',
+                    data: solarDataTomorrow.map(d => d.pv_estimate90),
+                    borderColor: 'rgba(255, 159, 64, 0.3)',
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false
                 }]
             },
             options: {
