@@ -175,12 +175,25 @@
                     fill: true
                 },
                 {
-                    label: 'Value Range (10th-90th)',
+                    label: '10th Percentile Value',
                     data: solarDataToday.map(d => {
                         const price = priceDataToday.find(p => 
                             new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
                         )?.price || 0;
-                        return (d.pv_estimate90 - d.pv_estimate10) * price / 1000 * 0.25;
+                        return d.pv_estimate10 * price / 1000 * 0.25;
+                    }),
+                    borderColor: 'rgba(153, 102, 255, 0.3)',
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: '90th Percentile Value',
+                    data: solarDataToday.map(d => {
+                        const price = priceDataToday.find(p => 
+                            new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
+                        )?.price || 0;
+                        return d.pv_estimate90 * price / 1000 * 0.25;
                     }),
                     borderColor: 'rgba(153, 102, 255, 0.3)',
                     borderDash: [5, 5],
@@ -312,12 +325,25 @@
                     fill: true
                 },
                 {
-                    label: 'Value Range (10th-90th)',
+                    label: '10th Percentile Value',
                     data: solarDataTomorrow.map(d => {
                         const price = priceDataTomorrow.find(p => 
                             new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
                         )?.price || 0;
-                        return (d.pv_estimate90 - d.pv_estimate10) * price / 1000 * 0.25;
+                        return d.pv_estimate10 * price / 1000 * 0.25;
+                    }),
+                    borderColor: 'rgba(153, 102, 255, 0.3)',
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: '90th Percentile Value',
+                    data: solarDataTomorrow.map(d => {
+                        const price = priceDataTomorrow.find(p => 
+                            new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
+                        )?.price || 0;
+                        return d.pv_estimate90 * price / 1000 * 0.25;
                     }),
                     borderColor: 'rgba(153, 102, 255, 0.3)',
                     borderDash: [5, 5],
