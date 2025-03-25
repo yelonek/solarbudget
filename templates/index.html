@@ -108,6 +108,10 @@
                 scales: {
                     y: {
                         beginAtZero: true
+                    },
+                    x: {
+                        min: solarDataToday.findIndex(d => d.pv_estimate > 0),
+                        max: solarDataToday.length - 1 - [...solarDataToday].reverse().findIndex(d => d.pv_estimate > 0)
                     }
                 }
             }
@@ -189,6 +193,10 @@
                 scales: {
                     y: {
                         beginAtZero: true
+                    },
+                    x: {
+                        min: solarDataToday.findIndex(d => d.pv_estimate > 0),
+                        max: solarDataToday.length - 1 - [...solarDataToday].reverse().findIndex(d => d.pv_estimate > 0)
                     }
                 }
             }
@@ -237,6 +245,10 @@
                 scales: {
                     y: {
                         beginAtZero: true
+                    },
+                    x: {
+                        min: solarDataTomorrow.findIndex(d => d.pv_estimate > 0),
+                        max: solarDataTomorrow.length - 1 - [...solarDataTomorrow].reverse().findIndex(d => d.pv_estimate > 0)
                     }
                 }
             }
@@ -318,6 +330,10 @@
                 scales: {
                     y: {
                         beginAtZero: true
+                    },
+                    x: {
+                        min: solarDataTomorrow.findIndex(d => d.pv_estimate > 0),
+                        max: solarDataTomorrow.length - 1 - [...solarDataTomorrow].reverse().findIndex(d => d.pv_estimate > 0)
                     }
                 }
             }
