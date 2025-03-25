@@ -76,72 +76,202 @@ pse_cache = TTLCache(maxsize=100, ttl=86400)  # 24 hour cache for PSE data
 def get_solcast_data():
     session = Session()
     try:
-        # Check if we have recent data (less than 2 hours old)
-        latest_data = (
-            session.query(SolcastData).order_by(SolcastData.timestamp.desc()).first()
+        # Get all recent records, ordered by timestamp
+        recent_records = (
+            session.query(SolcastData)
+            .order_by(SolcastData.timestamp.desc())
+            .limit(2)
+            .all()
         )
-        if latest_data is not None and (
-            datetime.utcnow() - latest_data.timestamp
-        ) < timedelta(hours=2):
+
+        latest_data = recent_records[0] if recent_records else None
+        previous_data = recent_records[1] if len(recent_records) > 1 else None
+
+        logger.info(f"Found {len(recent_records)} recent records")
+        if latest_data:
+            logger.info(f"Latest data timestamp: {latest_data.timestamp}")
+            if latest_data.data:
+                logger.info(
+                    f"Latest data first time: {latest_data.data[0]['period_end']}"
+                )
+                logger.info(
+                    f"Latest data last time: {latest_data.data[-1]['period_end']}"
+                )
+
+        if previous_data:
+            logger.info(f"Previous data timestamp: {previous_data.timestamp}")
+            if previous_data.data:
+                logger.info(
+                    f"Previous data first time: {previous_data.data[0]['period_end']}"
+                )
+                logger.info(
+                    f"Previous data last time: {previous_data.data[-1]['period_end']}"
+                )
+
+        current_time = datetime.utcnow()
+        should_fetch_new = False
+
+        if latest_data is None or (current_time - latest_data.timestamp) > timedelta(
+            hours=2
+        ):
+            should_fetch_new = True
+
+        df = None
+        if should_fetch_new:
+            # Fetch new data from API
+            logger.info("Fetching new Solcast data")
+            site_id = os.getenv("SOLCAST_SITE_ID", "6803-0207-f7d6-3a1f")
+            url = f"https://api.solcast.com.au/rooftop_sites/{site_id}/forecasts"
+            params = {"format": "json"}
+            headers = {
+                "Authorization": f"Bearer {os.getenv('SOLCAST_API_KEY')}",
+                "Accept": "application/json",
+            }
+
+            try:
+                response = requests.get(url, params=params, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+
+                if not isinstance(data, dict) or "forecasts" not in data:
+                    logger.error("Invalid Solcast API response format")
+                    raise ValueError("Invalid API response format")
+
+                # Process the new data
+                df = pd.DataFrame(data["forecasts"])
+                df["period_end"] = pd.to_datetime(df["period_end"])
+                df = df.set_index("period_end").resample("15min").interpolate()
+
+                # Check if the new data starts too late in the day
+                earliest_time = df.index.min()
+                current_date = current_time.date()
+                expected_start = pd.Timestamp(current_date).replace(
+                    hour=5
+                )  # Expect data from 5 AM
+
+                logger.info(f"New data earliest time: {earliest_time}")
+                logger.info(f"Expected start time: {expected_start}")
+
+                if earliest_time.time() > expected_start.time():
+                    logger.info(
+                        f"New data starts late at {earliest_time.time()}, checking previous data"
+                    )
+
+                    if previous_data:
+                        prev_df = pd.DataFrame.from_records(previous_data.data)
+                        prev_df["period_end"] = pd.to_datetime(prev_df["period_end"])
+                        prev_df = prev_df.set_index("period_end")
+
+                        logger.info(
+                            f"Previous data range: {prev_df.index.min()} to {prev_df.index.max()}"
+                        )
+
+                        # Filter previous data for early morning hours of current date
+                        morning_data = prev_df[
+                            (prev_df.index.date == current_date)
+                            & (prev_df.index < earliest_time)
+                        ]
+
+                        logger.info(f"Found {len(morning_data)} morning data points")
+                        if not morning_data.empty:
+                            logger.info(
+                                f"Morning data range: {morning_data.index.min()} to {morning_data.index.max()}"
+                            )
+                            logger.info("Merging morning hours from previous data")
+                            df = pd.concat([morning_data, df])
+                            df = df.sort_index()
+                            logger.info(
+                                f"Final data range after merge: {df.index.min()} to {df.index.max()}"
+                            )
+
+                # Convert DataFrame to records with ISO format timestamps
+                records = df.reset_index().to_dict(orient="records")
+                for record in records:
+                    if isinstance(record["period_end"], pd.Timestamp):
+                        record["period_end"] = record["period_end"].isoformat()
+
+                # Save to database
+                new_data = SolcastData(timestamp=current_time, data=records)
+                session.add(new_data)
+                session.commit()
+
+                logger.info("Successfully fetched and cached Solcast data")
+
+            except Exception as e:
+                logger.error(f"Error fetching new Solcast data: {e}")
+                if latest_data:
+                    logger.info("Using latest cached data due to API error")
+                    df = pd.DataFrame.from_records(latest_data.data)
+                    df["period_end"] = pd.to_datetime(df["period_end"])
+                    df = df.set_index("period_end")
+                else:
+                    return pd.DataFrame()
+
+        else:
+            # Use cached data
             logger.info("Using cached Solcast data from database")
             df = pd.DataFrame.from_records(latest_data.data)
-            # Convert period_end to datetime and set as index
             df["period_end"] = pd.to_datetime(df["period_end"])
             df = df.set_index("period_end")
-            return df
 
-        # If no recent data, fetch new data
-        logger.info("Fetching new Solcast data")
-        site_id = os.getenv("SOLCAST_SITE_ID", "6803-0207-f7d6-3a1f")
-        url = f"https://api.solcast.com.au/rooftop_sites/{site_id}/forecasts"
-        params = {"format": "json"}
-        headers = {
-            "Authorization": f"Bearer {os.getenv('SOLCAST_API_KEY')}",
-            "Accept": "application/json",
-        }
+        # Check for missing morning data regardless of data source
+        earliest_time = df.index.min()
+        current_date = current_time.date()
+        expected_start = pd.Timestamp(current_date).replace(
+            hour=5
+        )  # Expect data from 5 AM
 
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+        logger.info(f"Data earliest time: {earliest_time}")
+        logger.info(f"Expected start time: {expected_start}")
 
-        if not isinstance(data, dict) or "forecasts" not in data:
-            logger.error("Invalid Solcast API response format")
-            if latest_data is not None:
-                logger.info("Using expired cached data due to invalid response")
-                df = pd.DataFrame.from_records(latest_data.data)
-                df["period_end"] = pd.to_datetime(df["period_end"])
-                df = df.set_index("period_end")
-                return df
-            return pd.DataFrame()
+        if earliest_time.time() > expected_start.time():
+            logger.info(
+                f"Data starts late at {earliest_time.time()}, checking previous data"
+            )
 
-        # Process the data
-        df = pd.DataFrame(data["forecasts"])
-        df["period_end"] = pd.to_datetime(df["period_end"])
-        df = df.infer_objects()
-        df = df.set_index("period_end").resample("15min").interpolate()
+            if previous_data:
+                prev_df = pd.DataFrame.from_records(previous_data.data)
+                prev_df["period_end"] = pd.to_datetime(prev_df["period_end"])
+                prev_df = prev_df.set_index("period_end")
 
-        # Convert DataFrame to records with ISO format timestamps
-        records = df.reset_index().to_dict(orient="records")
-        for record in records:
-            if isinstance(record["period_end"], pd.Timestamp):
-                record["period_end"] = record["period_end"].isoformat()
+                logger.info(
+                    f"Previous data range: {prev_df.index.min()} to {prev_df.index.max()}"
+                )
 
-        # Save to database
-        new_data = SolcastData(timestamp=datetime.utcnow(), data=records)
-        session.add(new_data)
-        session.commit()
+                # Filter previous data for early morning hours of current date
+                morning_data = prev_df[
+                    (prev_df.index.date == current_date)
+                    & (prev_df.index < earliest_time)
+                ]
 
-        logger.info("Successfully fetched and cached Solcast data")
+                logger.info(f"Found {len(morning_data)} morning data points")
+                if not morning_data.empty:
+                    logger.info(
+                        f"Morning data range: {morning_data.index.min()} to {morning_data.index.max()}"
+                    )
+                    logger.info("Merging morning hours from previous data")
+                    df = pd.concat([morning_data, df])
+                    df = df.sort_index()
+                    logger.info(
+                        f"Final data range after merge: {df.index.min()} to {df.index.max()}"
+                    )
+
+                    if should_fetch_new:
+                        # Only save to database if this was new data
+                        records = df.reset_index().to_dict(orient="records")
+                        for record in records:
+                            if isinstance(record["period_end"], pd.Timestamp):
+                                record["period_end"] = record["period_end"].isoformat()
+
+                        new_data = SolcastData(timestamp=current_time, data=records)
+                        session.add(new_data)
+                        session.commit()
+
+        logger.info(f"Final data range: {df.index.min()} to {df.index.max()}")
         return df
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching Solcast data: {e}")
-        if latest_data is not None:
-            logger.info("Using expired cached data due to API error")
-            df = pd.DataFrame.from_records(latest_data.data)
-            df["period_end"] = pd.to_datetime(df["period_end"])
-            df = df.set_index("period_end")
-            return df
+    except Exception as e:
+        logger.error(f"Unexpected error in get_solcast_data: {e}")
         return pd.DataFrame()
     finally:
         session.close()
@@ -437,4 +567,4 @@ if __name__ == "__main__":
     import uvicorn
 
     logger.info("Starting Solar Budget application")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=9000)
