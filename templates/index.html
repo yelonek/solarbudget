@@ -36,17 +36,17 @@
                     <div class="font-medium">
                         <div class="text-lg font-semibold">{{ "%.2f"|format(data.energy) }} kWh</div>
                         <div class="text-sm text-gray-500">
-                            <span title="10th percentile">P10: {{ "%.2f"|format(data.energy10) }} kWh</span>
+                            <span title="Pessimistic scenario (10th percentile)">Pessimistic: {{ "%.2f"|format(data.energy10) }} kWh</span>
                             <span class="mx-2">|</span>
-                            <span title="90th percentile">P90: {{ "%.2f"|format(data.energy90) }} kWh</span>
+                            <span title="Optimistic scenario (90th percentile)">Optimistic: {{ "%.2f"|format(data.energy90) }} kWh</span>
                         </div>
                     </div>
                     <div class="mt-2">
                         <div class="text-base text-gray-600">{{ "%.2f"|format(data.value) }} PLN</div>
                         <div class="text-sm text-gray-500">
-                            <span title="10th percentile">P10: {{ "%.2f"|format(data.value10) }} PLN</span>
+                            <span title="Pessimistic scenario (10th percentile)">Pessimistic: {{ "%.2f"|format(data.value10) }} PLN</span>
                             <span class="mx-2">|</span>
-                            <span title="90th percentile">P90: {{ "%.2f"|format(data.value90) }} PLN</span>
+                            <span title="Optimistic scenario (90th percentile)">Optimistic: {{ "%.2f"|format(data.value90) }} PLN</span>
                         </div>
                     </div>
                 </div>
@@ -256,7 +256,7 @@
                         yAxisID: 'y',
                     },
                     {
-                        label: '10th Percentile',
+                        label: 'Pessimistic',
                         data: solarData.map(d => d.pv_estimate10),
                         borderColor: 'rgba(255, 159, 64, 0.3)',
                         borderDash: [5, 5],
@@ -264,7 +264,7 @@
                         yAxisID: 'y'
                     },
                     {
-                        label: '90th Percentile',
+                        label: 'Optimistic',
                         data: solarData.map(d => d.pv_estimate90),
                         borderColor: 'rgba(255, 159, 64, 0.3)',
                         borderDash: [5, 5],
@@ -279,7 +279,7 @@
                         yAxisID: 'y2',
                     },
                     {
-                        label: 'Cumulative 10th Percentile',
+                        label: 'Pessimistic',
                         data: cumulativeData.map(d => d.p10),
                         borderColor: 'rgba(75, 192, 192, 0.3)',
                         borderDash: [5, 5],
@@ -287,7 +287,7 @@
                         yAxisID: 'y2'
                     },
                     {
-                        label: 'Cumulative 90th Percentile',
+                        label: 'Optimistic',
                         data: cumulativeData.map(d => d.p90),
                         borderColor: 'rgba(75, 192, 192, 0.3)',
                         borderDash: [5, 5],
@@ -420,7 +420,7 @@
                         fill: true
                     },
                     {
-                        label: '10th Percentile (PLN/hr)',
+                        label: 'Pessimistic',
                         data: valueData.map(d => d.instant10),
                         borderColor: 'rgba(153, 102, 255, 0.3)',
                         borderDash: [5, 5],
@@ -428,7 +428,7 @@
                         yAxisID: 'y'
                     },
                     {
-                        label: '90th Percentile (PLN/hr)',
+                        label: 'Optimistic',
                         data: valueData.map(d => d.instant90),
                         borderColor: 'rgba(153, 102, 255, 0.3)',
                         borderDash: [5, 5],
@@ -444,7 +444,7 @@
                         fill: true
                     },
                     {
-                        label: 'Cumulative 10th Percentile',
+                        label: 'Pessimistic',
                         data: valueData.map(d => d.cumulative10),
                         borderColor: 'rgba(54, 162, 235, 0.3)',
                         borderDash: [5, 5],
@@ -452,7 +452,7 @@
                         yAxisID: 'y2'
                     },
                     {
-                        label: 'Cumulative 90th Percentile',
+                        label: 'Optimistic',
                         data: valueData.map(d => d.cumulative90),
                         borderColor: 'rgba(54, 162, 235, 0.3)',
                         borderDash: [5, 5],
