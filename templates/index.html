@@ -92,6 +92,8 @@
         // Today's Charts
         const solarDataToday = {{ solar_data_today|tojson }};
         const currentIndexSolar = findClosestTimeIndex(solarDataToday, currentTimeStr);
+        const priceDataToday = {{ prices_today|tojson }};
+        const currentIndexPrice = findClosestTimeIndex(priceDataToday, currentTimeStr);
 
         // Common annotation config for current time line
         const currentTimeAnnotation = {
@@ -105,72 +107,203 @@
             }
         };
 
-        new Chart(document.getElementById('solarChartToday'), {
-            type: 'line',
-            data: {
-                labels: solarDataToday.map(d => {
-                    const date = new Date(d.period_end);
-                    return date.toLocaleTimeString([], { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: false 
-                    });
-                }),
-                datasets: [{
-                    label: 'Solar Production Today (kW)',
-                    data: solarDataToday.map(d => d.pv_estimate),
-                    borderColor: 'rgb(255, 159, 64)',
-                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
-                    tension: 0.1,
-                    fill: true
-                },
-                {
-                    label: '10th Percentile',
-                    data: solarDataToday.map(d => d.pv_estimate10),
-                    borderColor: 'rgba(255, 159, 64, 0.3)',
-                    borderDash: [5, 5],
-                    tension: 0.1,
-                    fill: false
-                },
-                {
-                    label: '90th Percentile',
-                    data: solarDataToday.map(d => d.pv_estimate90),
-                    borderColor: 'rgba(255, 159, 64, 0.3)',
-                    borderDash: [5, 5],
-                    tension: 0.1,
-                    fill: false
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
+        function createSolarChart(canvasId, solarData) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            // Calculate cumulative values
+            let cumulative = 0;
+            const cumulativeData = solarData.map(d => {
+                cumulative += d.pv_estimate * 0.25; // 15-min intervals, so multiply by 0.25 to get kWh
+                return {x: d.period_end, y: cumulative};
+            });
+
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: solarData.map(d => {
+                        const date = new Date(d.period_end);
+                        return date.toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                        });
+                    }),
+                    datasets: [{
+                        label: 'Solar Production (kW)',
+                        data: solarData.map(d => d.pv_estimate),
+                        borderColor: 'rgb(255, 159, 64)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.5)',
+                        yAxisID: 'y',
                     },
-                    x: {
-                        min: solarDataToday.findIndex(d => d.pv_estimate > 0),
-                        max: solarDataToday.length - 1 - [...solarDataToday].reverse().findIndex(d => d.pv_estimate > 0)
-                    }
+                    {
+                        label: 'Cumulative Production (kWh)',
+                        data: cumulativeData.map(d => d.y),
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        yAxisID: 'y2',
+                    }]
                 },
-                plugins: {
-                    annotation: {
-                        annotations: {
-                            currentTime: currentTimeAnnotation
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            min: solarData.findIndex(d => d.pv_estimate > 0),
+                            max: solarData.length - 1 - [...solarData].reverse().findIndex(d => d.pv_estimate > 0),
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Power (kW)'
+                            },
+                            beginAtZero: true
+                        },
+                        y2: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Energy (kWh)'
+                            },
+                            beginAtZero: true,
+                            grid: {
+                                drawOnChartArea: false,
+                            },
                         }
                     }
                 }
+            });
+            return chart;
+        }
+
+        function createValueChart(canvasId, solarData, prices) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            // Calculate instantaneous and cumulative values
+            let cumulative = 0;
+            const valueData = solarData.map(d => {
+                // Convert period_end to match price datetime format by removing timezone
+                const periodEnd = d.period_end.split('+')[0];
+                const matchingPrice = prices.find(p => p.datetime === periodEnd);
+                // Price is in PLN/MWh, power is in kW
+                // To get PLN/hr:
+                // 1. Convert kW to MW (divide by 1000)
+                // 2. Multiply by price (PLN/MWh)
+                const value = matchingPrice ? (d.pv_estimate / 1000 * matchingPrice.price) : 0;
+                cumulative += value * 0.25; // 15-min intervals
+                return {
+                    instant: value,
+                    cumulative: cumulative,
+                    time: d.period_end,
+                    pv_estimate: d.pv_estimate
+                };
+            });
+
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: valueData.map(d => {
+                        const date = new Date(d.time);
+                        return date.toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                        });
+                    }),
+                    datasets: [{
+                        label: 'Energy Value (PLN/hr)',
+                        data: valueData.map(d => d.instant),
+                        borderColor: 'rgb(153, 102, 255)',
+                        backgroundColor: 'rgba(153, 102, 255, 0.5)',
+                        yAxisID: 'y',
+                        fill: true
+                    },
+                    {
+                        label: 'Cumulative Value (PLN)',
+                        data: valueData.map(d => d.cumulative),
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        yAxisID: 'y2',
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        x: {
+                            min: valueData.findIndex(d => d.pv_estimate > 0),
+                            max: valueData.length - 1 - [...valueData].reverse().findIndex(d => d.pv_estimate > 0),
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'PLN/hr'
+                            },
+                            beginAtZero: true,
+                            suggestedMax: 2.5 // Adjusted based on typical values
+                        },
+                        y2: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Cumulative PLN'
+                            },
+                            beginAtZero: true,
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
+            return chart;
+        }
+
+        // Create today's charts using new functions
+        const solarChartToday = createSolarChart('solarChartToday', solarDataToday);
+        const valueChartToday = createValueChart('valueChartToday', solarDataToday, priceDataToday);
+
+        // Add current time annotation to today's charts
+        solarChartToday.options.plugins = {
+            annotation: {
+                annotations: {
+                    currentTime: currentTimeAnnotation
+                }
             }
-        });
-
-        const priceDataToday = {{ prices_today|tojson }};
-        const currentIndexPrice = findClosestTimeIndex(priceDataToday, currentTimeStr);
-
-        const priceTimeAnnotation = {
-            ...currentTimeAnnotation,
-            xMin: currentIndexPrice,
-            xMax: currentIndexPrice
+        };
+        valueChartToday.options.plugins = {
+            annotation: {
+                annotations: {
+                    currentTime: currentTimeAnnotation
+                }
+            }
         };
 
+        // Price chart remains the same
         new Chart(document.getElementById('priceChartToday'), {
             type: 'line',
             data: {
@@ -208,73 +341,6 @@
                 plugins: {
                     annotation: {
                         annotations: {
-                            currentTime: priceTimeAnnotation
-                        }
-                    }
-                }
-            }
-        });
-
-        new Chart(document.getElementById('valueChartToday'), {
-            type: 'line',
-            data: {
-                labels: solarDataToday.map(d => {
-                    const date = new Date(d.period_end);
-                    return date.toLocaleTimeString([], { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: false 
-                    });
-                }),
-                datasets: [{
-                    label: 'Energy Value Today (PLN)',
-                    data: solarDataToday.map(d => d.value),
-                    borderColor: 'rgb(153, 102, 255)',
-                    backgroundColor: 'rgba(153, 102, 255, 0.1)',
-                    tension: 0.1,
-                    fill: true
-                },
-                {
-                    label: '10th Percentile Value',
-                    data: solarDataToday.map(d => {
-                        const price = priceDataToday.find(p => 
-                            new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
-                        )?.price || 0;
-                        return d.pv_estimate10 * price / 1000 * 0.25;
-                    }),
-                    borderColor: 'rgba(153, 102, 255, 0.3)',
-                    borderDash: [5, 5],
-                    tension: 0.1,
-                    fill: false
-                },
-                {
-                    label: '90th Percentile Value',
-                    data: solarDataToday.map(d => {
-                        const price = priceDataToday.find(p => 
-                            new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
-                        )?.price || 0;
-                        return d.pv_estimate90 * price / 1000 * 0.25;
-                    }),
-                    borderColor: 'rgba(153, 102, 255, 0.3)',
-                    borderDash: [5, 5],
-                    tension: 0.1,
-                    fill: false
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    },
-                    x: {
-                        min: solarDataToday.findIndex(d => d.pv_estimate > 0),
-                        max: solarDataToday.length - 1 - [...solarDataToday].reverse().findIndex(d => d.pv_estimate > 0)
-                    }
-                },
-                plugins: {
-                    annotation: {
-                        annotations: {
                             currentTime: currentTimeAnnotation
                         }
                     }
@@ -284,57 +350,13 @@
 
         // Tomorrow's Charts
         const solarDataTomorrow = {{ solar_data_tomorrow|tojson }};
-        new Chart(document.getElementById('solarChartTomorrow'), {
-            type: 'line',
-            data: {
-                labels: solarDataTomorrow.map(d => {
-                    const date = new Date(d.period_end);
-                    return date.toLocaleTimeString([], { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: false 
-                    });
-                }),
-                datasets: [{
-                    label: 'Solar Production Tomorrow (kW)',
-                    data: solarDataTomorrow.map(d => d.pv_estimate),
-                    borderColor: 'rgb(255, 159, 64)',
-                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
-                    tension: 0.1,
-                    fill: true
-                },
-                {
-                    label: '10th Percentile',
-                    data: solarDataTomorrow.map(d => d.pv_estimate10),
-                    borderColor: 'rgba(255, 159, 64, 0.3)',
-                    borderDash: [5, 5],
-                    tension: 0.1,
-                    fill: false
-                },
-                {
-                    label: '90th Percentile',
-                    data: solarDataTomorrow.map(d => d.pv_estimate90),
-                    borderColor: 'rgba(255, 159, 64, 0.3)',
-                    borderDash: [5, 5],
-                    tension: 0.1,
-                    fill: false
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    },
-                    x: {
-                        min: solarDataTomorrow.findIndex(d => d.pv_estimate > 0),
-                        max: solarDataTomorrow.length - 1 - [...solarDataTomorrow].reverse().findIndex(d => d.pv_estimate > 0)
-                    }
-                }
-            }
-        });
-
         const priceDataTomorrow = {{ prices_tomorrow|tojson }};
+
+        // Create tomorrow's charts using new functions
+        const solarChartTomorrow = createSolarChart('solarChartTomorrow', solarDataTomorrow);
+        const valueChartTomorrow = createValueChart('valueChartTomorrow', solarDataTomorrow, priceDataTomorrow);
+
+        // Price chart remains the same
         new Chart(document.getElementById('priceChartTomorrow'), {
             type: 'line',
             data: {
@@ -367,66 +389,6 @@
                 scales: {
                     y: {
                         beginAtZero: true
-                    }
-                }
-            }
-        });
-
-        new Chart(document.getElementById('valueChartTomorrow'), {
-            type: 'line',
-            data: {
-                labels: solarDataTomorrow.map(d => {
-                    const date = new Date(d.period_end);
-                    return date.toLocaleTimeString([], { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: false 
-                    });
-                }),
-                datasets: [{
-                    label: 'Energy Value Tomorrow (PLN)',
-                    data: solarDataTomorrow.map(d => d.value),
-                    borderColor: 'rgb(153, 102, 255)',
-                    backgroundColor: 'rgba(153, 102, 255, 0.1)',
-                    tension: 0.1,
-                    fill: true
-                },
-                {
-                    label: '10th Percentile Value',
-                    data: solarDataTomorrow.map(d => {
-                        const price = priceDataTomorrow.find(p => 
-                            new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
-                        )?.price || 0;
-                        return d.pv_estimate10 * price / 1000 * 0.25;
-                    }),
-                    borderColor: 'rgba(153, 102, 255, 0.3)',
-                    borderDash: [5, 5],
-                    tension: 0.1,
-                    fill: false
-                },
-                {
-                    label: '90th Percentile Value',
-                    data: solarDataTomorrow.map(d => {
-                        const price = priceDataTomorrow.find(p => 
-                            new Date(p.datetime).getTime() === new Date(d.period_end).getTime()
-                        )?.price || 0;
-                        return d.pv_estimate90 * price / 1000 * 0.25;
-                    }),
-                    borderColor: 'rgba(153, 102, 255, 0.3)',
-                    borderDash: [5, 5],
-                    tension: 0.1,
-                    fill: false
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    },
-                    x: {
-                        min: solarDataTomorrow.findIndex(d => d.pv_estimate > 0),
-                        max: solarDataTomorrow.length - 1 - [...solarDataTomorrow].reverse().findIndex(d => d.pv_estimate > 0)
                     }
                 }
             }
