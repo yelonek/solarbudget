@@ -112,9 +112,18 @@
             
             // Calculate cumulative values
             let cumulative = 0;
+            let cumulative10 = 0;
+            let cumulative90 = 0;
             const cumulativeData = solarData.map(d => {
                 cumulative += d.pv_estimate * 0.25;
-                return {x: d.period_end, y: cumulative};
+                cumulative10 += d.pv_estimate10 * 0.25;
+                cumulative90 += d.pv_estimate90 * 0.25;
+                return {
+                    main: cumulative,
+                    p10: cumulative10,
+                    p90: cumulative90,
+                    time: d.period_end
+                };
             });
 
             const options = {
@@ -204,10 +213,26 @@
                     },
                     {
                         label: 'Cumulative Production (kWh)',
-                        data: cumulativeData.map(d => d.y),
+                        data: cumulativeData.map(d => d.main),
                         borderColor: 'rgb(75, 192, 192)',
                         backgroundColor: 'rgba(75, 192, 192, 0.5)',
                         yAxisID: 'y2',
+                    },
+                    {
+                        label: 'Cumulative 10th Percentile',
+                        data: cumulativeData.map(d => d.p10),
+                        borderColor: 'rgba(75, 192, 192, 0.3)',
+                        borderDash: [5, 5],
+                        fill: false,
+                        yAxisID: 'y2'
+                    },
+                    {
+                        label: 'Cumulative 90th Percentile',
+                        data: cumulativeData.map(d => d.p90),
+                        borderColor: 'rgba(75, 192, 192, 0.3)',
+                        borderDash: [5, 5],
+                        fill: false,
+                        yAxisID: 'y2'
                     }]
                 },
                 options: options
