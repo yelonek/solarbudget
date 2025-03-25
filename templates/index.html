@@ -6,6 +6,7 @@
     <title>Solar Budget</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
@@ -65,8 +66,45 @@
     </div>
 
     <script>
+        // Register the annotation plugin
+        Chart.register('chartjs-plugin-annotation');
+
+        // Get current time and find its index in the data
+        const now = new Date();
+        const currentTimeStr = now.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+        });
+
+        // Function to find the closest time index
+        function findClosestTimeIndex(data, targetTime) {
+            const target = new Date();
+            const [hours, minutes] = targetTime.split(':').map(Number);
+            target.setHours(hours, minutes, 0, 0);
+            
+            return data.findIndex(d => {
+                const date = new Date(d.period_end || d.datetime);
+                return date.getTime() >= target.getTime();
+            });
+        }
+
         // Today's Charts
         const solarDataToday = {{ solar_data_today|tojson }};
+        const currentIndexSolar = findClosestTimeIndex(solarDataToday, currentTimeStr);
+
+        // Common annotation config for current time line
+        const currentTimeAnnotation = {
+            type: 'line',
+            xMin: currentIndexSolar,
+            xMax: currentIndexSolar,
+            borderColor: 'rgba(255, 0, 0, 0.5)',
+            borderWidth: 2,
+            label: {
+                display: false
+            }
+        };
+
         new Chart(document.getElementById('solarChartToday'), {
             type: 'line',
             data: {
@@ -113,11 +151,26 @@
                         min: solarDataToday.findIndex(d => d.pv_estimate > 0),
                         max: solarDataToday.length - 1 - [...solarDataToday].reverse().findIndex(d => d.pv_estimate > 0)
                     }
+                },
+                plugins: {
+                    annotation: {
+                        annotations: {
+                            currentTime: currentTimeAnnotation
+                        }
+                    }
                 }
             }
         });
 
         const priceDataToday = {{ prices_today|tojson }};
+        const currentIndexPrice = findClosestTimeIndex(priceDataToday, currentTimeStr);
+
+        const priceTimeAnnotation = {
+            ...currentTimeAnnotation,
+            xMin: currentIndexPrice,
+            xMax: currentIndexPrice
+        };
+
         new Chart(document.getElementById('priceChartToday'), {
             type: 'line',
             data: {
@@ -150,6 +203,13 @@
                 scales: {
                     y: {
                         beginAtZero: true
+                    }
+                },
+                plugins: {
+                    annotation: {
+                        annotations: {
+                            currentTime: priceTimeAnnotation
+                        }
                     }
                 }
             }
@@ -210,6 +270,13 @@
                     x: {
                         min: solarDataToday.findIndex(d => d.pv_estimate > 0),
                         max: solarDataToday.length - 1 - [...solarDataToday].reverse().findIndex(d => d.pv_estimate > 0)
+                    }
+                },
+                plugins: {
+                    annotation: {
+                        annotations: {
+                            currentTime: currentTimeAnnotation
+                        }
                     }
                 }
             }
