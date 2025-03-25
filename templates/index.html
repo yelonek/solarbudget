@@ -18,15 +18,21 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Solar Production</h3>
-                    <canvas id="solarChartToday"></canvas>
+                    <div class="chart-container">
+                        <canvas id="solarChartToday"></canvas>
+                    </div>
                 </div>
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Energy Prices</h3>
-                    <canvas id="priceChartToday"></canvas>
+                    <div class="chart-container">
+                        <canvas id="priceChartToday"></canvas>
+                    </div>
                 </div>
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Energy Value</h3>
-                    <canvas id="valueChartToday"></canvas>
+                    <div class="chart-container">
+                        <canvas id="valueChartToday"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -37,15 +43,21 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Solar Production</h3>
-                    <canvas id="solarChartTomorrow"></canvas>
+                    <div class="chart-container">
+                        <canvas id="solarChartTomorrow"></canvas>
+                    </div>
                 </div>
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Energy Prices</h3>
-                    <canvas id="priceChartTomorrow"></canvas>
+                    <div class="chart-container">
+                        <canvas id="priceChartTomorrow"></canvas>
+                    </div>
                 </div>
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Energy Value</h3>
-                    <canvas id="valueChartTomorrow"></canvas>
+                    <div class="chart-container">
+                        <canvas id="valueChartTomorrow"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -128,9 +140,28 @@
 
             const options = {
                 responsive: true,
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        left: 2,
+                        right: 2,
+                        top: 10,
+                        bottom: 10
+                    }
+                },
                 interaction: {
                     mode: 'index',
                     intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        align: 'start',
+                        labels: {
+                            boxWidth: 15,
+                            padding: 10
+                        }
+                    }
                 },
                 scales: {
                     x: {
@@ -169,6 +200,7 @@
 
             if (showCurrentTime) {
                 options.plugins = {
+                    ...options.plugins,
                     annotation: {
                         annotations: {
                             currentTime: currentTimeAnnotation
@@ -270,9 +302,28 @@
 
             const options = {
                 responsive: true,
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        left: 2,
+                        right: 2,
+                        top: 10,
+                        bottom: 10
+                    }
+                },
                 interaction: {
                     mode: 'index',
                     intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        align: 'start',
+                        labels: {
+                            boxWidth: 15,
+                            padding: 10
+                        }
+                    }
                 },
                 scales: {
                     x: {
@@ -312,6 +363,7 @@
 
             if (showCurrentTime) {
                 options.plugins = {
+                    ...options.plugins,
                     annotation: {
                         annotations: {
                             currentTime: currentTimeAnnotation
@@ -419,16 +471,25 @@
             },
             options: {
                 responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                },
+                maintainAspectRatio: false,
                 plugins: {
+                    legend: {
+                        position: 'bottom',
+                        align: 'start',
+                        labels: {
+                            boxWidth: 15,
+                            padding: 10
+                        }
+                    },
                     annotation: {
                         annotations: {
                             currentTime: currentTimeAnnotation
                         }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
                     }
                 }
             }
@@ -480,5 +541,14 @@
             }
         });
     </script>
+
+    <style>
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 98%;
+        margin: 0 auto;
+    }
+    </style>
 </body>
 </html> 
