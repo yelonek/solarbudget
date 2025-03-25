@@ -19,8 +19,26 @@
                 {% for date, data in daily_totals.items() %}
                 <div class="bg-gray-50 p-4 rounded">
                     <div class="text-sm text-gray-600">{{ date }}</div>
-                    <div class="text-lg font-semibold">{{ "%.2f"|format(data.energy) }} kWh</div>
-                    <div class="text-sm text-gray-600">{{ "%.2f"|format(data.value) }} PLN</div>
+                    <div class="font-medium">
+                        <div class="text-lg font-semibold">{{ "%.2f"|format(data.energy) }} kWh</div>
+                        {% if data.get('energy10') is not none and data.get('energy90') is not none %}
+                        <div class="text-sm text-gray-500">
+                            <span title="10th percentile">P10: {{ "%.2f"|format(data.energy10) }} kWh</span>
+                            <span class="mx-2">|</span>
+                            <span title="90th percentile">P90: {{ "%.2f"|format(data.energy90) }} kWh</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="mt-2">
+                        <div class="text-base text-gray-600">{{ "%.2f"|format(data.value) }} PLN</div>
+                        {% if data.get('value10') is not none and data.get('value90') is not none %}
+                        <div class="text-sm text-gray-500">
+                            <span title="10th percentile">P10: {{ "%.2f"|format(data.value10) }} PLN</span>
+                            <span class="mx-2">|</span>
+                            <span title="90th percentile">P90: {{ "%.2f"|format(data.value90) }} PLN</span>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
                 {% endfor %}
             </div>

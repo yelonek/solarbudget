@@ -536,10 +536,27 @@ async def index(request: Request):
     daily_totals = solar_data.resample("D")["pv_estimate"].sum() * 0.25
     daily_value_totals = solar_data.resample("D")["value"].sum()
 
+    # Calculate daily percentiles
+    daily_totals_10 = solar_data.resample("D")["pv_estimate10"].sum() * 0.25
+    daily_totals_90 = solar_data.resample("D")["pv_estimate90"].sum() * 0.25
+
+    # Calculate value percentiles (handle division by zero)
+    value_ratio = solar_data["value"] / (
+        solar_data["pv_estimate"].replace(0, float("nan"))
+    )
+    solar_data["value10"] = solar_data["pv_estimate10"] * value_ratio.fillna(0)
+    solar_data["value90"] = solar_data["pv_estimate90"] * value_ratio.fillna(0)
+    daily_value_10 = solar_data.resample("D")["value10"].sum()
+    daily_value_90 = solar_data.resample("D")["value90"].sum()
+
     daily_totals_dict = {
         timestamp.strftime("%Y-%m-%d"): {
             "energy": energy,
+            "energy10": daily_totals_10[timestamp],
+            "energy90": daily_totals_90[timestamp],
             "value": daily_value_totals[timestamp],
+            "value10": daily_value_10[timestamp],
+            "value90": daily_value_90[timestamp],
         }
         for timestamp, energy in daily_totals.items()
         if isinstance(timestamp, (pd.Timestamp, datetime))
