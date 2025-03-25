@@ -15,29 +15,39 @@
         <!-- Daily Totals -->
         <div class="bg-white rounded-lg shadow p-6 mb-8">
             <h2 class="text-xl font-semibold mb-4">Daily Production Totals</h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Current Stats -->
+                <div class="bg-gray-50 p-4 rounded">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-sm text-gray-600">Current Price</div>
+                            <div class="text-lg font-semibold">{{ "%.3f"|format(prices_today[-1].price / 1000) if prices_today else 0 }} PLN/kWh</div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-600">Current Production</div>
+                            <div class="text-lg font-semibold">{{ "%.2f"|format(solar_data_today[-1].pv_estimate) if solar_data_today else 0 }} kW</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Daily Totals -->
                 {% for date, data in daily_totals.items() %}
                 <div class="bg-gray-50 p-4 rounded">
                     <div class="text-sm text-gray-600">{{ date }}</div>
                     <div class="font-medium">
                         <div class="text-lg font-semibold">{{ "%.2f"|format(data.energy) }} kWh</div>
-                        {% if data.get('energy10') is not none and data.get('energy90') is not none %}
                         <div class="text-sm text-gray-500">
                             <span title="10th percentile">P10: {{ "%.2f"|format(data.energy10) }} kWh</span>
                             <span class="mx-2">|</span>
                             <span title="90th percentile">P90: {{ "%.2f"|format(data.energy90) }} kWh</span>
                         </div>
-                        {% endif %}
                     </div>
                     <div class="mt-2">
                         <div class="text-base text-gray-600">{{ "%.2f"|format(data.value) }} PLN</div>
-                        {% if data.get('value10') is not none and data.get('value90') is not none %}
                         <div class="text-sm text-gray-500">
                             <span title="10th percentile">P10: {{ "%.2f"|format(data.value10) }} PLN</span>
                             <span class="mx-2">|</span>
                             <span title="90th percentile">P90: {{ "%.2f"|format(data.value90) }} PLN</span>
                         </div>
-                        {% endif %}
                     </div>
                 </div>
                 {% endfor %}
