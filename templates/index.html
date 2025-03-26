@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="60">
     <title>Solar Budget</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -21,11 +22,11 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <div class="text-sm text-gray-600">Current Price</div>
-                            <div class="text-lg font-semibold">{{ "%.3f"|format(prices_today[-1].price / 1000) if prices_today else 0 }} PLN/kWh</div>
+                            <div class="text-lg font-semibold" id="currentPrice">{{ "%.3f"|format(current_price.price / 1000) if current_price else 0 }} PLN/kWh</div>
                         </div>
                         <div>
                             <div class="text-sm text-gray-600">Current Production</div>
-                            <div class="text-lg font-semibold">{{ "%.2f"|format(solar_data_today[-1].pv_estimate) if solar_data_today else 0 }} kW</div>
+                            <div class="text-lg font-semibold" id="currentProduction">{{ "%.2f"|format(solar_data_today[-1].pv_estimate) if solar_data_today else 0 }} kW</div>
                         </div>
                     </div>
                 </div>
@@ -568,6 +569,57 @@
                 }
             }
         });
+
+        // Auto-refresh current values at 15-minute intervals
+        function updateCurrentValues() {
+            const now = new Date();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+
+            // Calculate time until next update
+            let nextUpdateDelay;
+            if (minutes < 15) {
+                nextUpdateDelay = ((15 - minutes) * 60 - seconds + 1) * 1000;
+            } else if (minutes < 30) {
+                nextUpdateDelay = ((30 - minutes) * 60 - seconds + 1) * 1000;
+            } else if (minutes < 45) {
+                nextUpdateDelay = ((45 - minutes) * 60 - seconds + 1) * 1000;
+            } else {
+                nextUpdateDelay = ((60 - minutes) * 60 - seconds + 1) * 1000;
+            }
+
+            // Schedule next update
+            setTimeout(updateCurrentValues, nextUpdateDelay);
+
+            // Only update values if we're at the start of a 15-minute interval
+            if (seconds !== 1) return;
+            if (![0, 15, 30, 45].includes(minutes)) return;
+
+            const currentPrice = document.getElementById('currentPrice');
+            const currentProduction = document.getElementById('currentProduction');
+            
+            const currentTimeStr = now.toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+            });
+
+            // Update current values based on closest time
+            const currentSolarIndex = findClosestTimeIndex(solarDataToday, currentTimeStr);
+            const currentPriceIndex = findClosestTimeIndex(priceDataToday, currentTimeStr);
+
+            if (currentSolarIndex >= 0 && solarDataToday[currentSolarIndex]) {
+                currentProduction.textContent = solarDataToday[currentSolarIndex].pv_estimate.toFixed(2) + ' kW';
+            }
+            if (currentPriceIndex >= 0 && priceDataToday[currentPriceIndex]) {
+                const priceInPLNperMWh = priceDataToday[currentPriceIndex].price;
+                const priceInPLNperKWh = (priceInPLNperMWh / 1000).toFixed(3);
+                currentPrice.textContent = priceInPLNperKWh + ' PLN/kWh';
+            }
+        }
+
+        // Start the update cycle
+        updateCurrentValues();
     </script>
 
     <style>

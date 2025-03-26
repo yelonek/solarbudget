@@ -112,7 +112,7 @@ def get_solcast_data():
         should_fetch_new = False
 
         if latest_data is None or (current_time - latest_data.timestamp) > timedelta(
-            hours=2
+            minutes=15
         ):
             should_fetch_new = True
 
@@ -532,6 +532,23 @@ async def index(request: Request):
         if datetime.fromisoformat(price["datetime"]).date() == tomorrow
     ]
 
+    # Sort prices by datetime to ensure correct ordering
+    prices_today.sort(key=lambda x: x["datetime"])
+    prices_tomorrow.sort(key=lambda x: x["datetime"])
+
+    # Find current price (closest to current time)
+    current_time = datetime.now()
+    current_hour = current_time.replace(minute=0, second=0, microsecond=0)
+
+    # Find the price entry closest to current time
+    current_price = None
+    if prices_today:
+        time_diffs = [
+            abs((datetime.fromisoformat(p["datetime"]) - current_hour).total_seconds())
+            for p in prices_today
+        ]
+        current_price = prices_today[time_diffs.index(min(time_diffs))]
+
     # Calculate daily totals
     daily_totals = solar_data.resample("D")["pv_estimate"].sum() * 0.25
     daily_value_totals = solar_data.resample("D")["value"].sum()
@@ -576,6 +593,7 @@ async def index(request: Request):
             "prices_today": prices_today,
             "prices_tomorrow": prices_tomorrow,
             "daily_totals": daily_totals_dict,
+            "current_price": current_price,
         },
     )
 
