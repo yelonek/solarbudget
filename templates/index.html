@@ -137,16 +137,18 @@
         const currentIndexPrice = findClosestTimeIndex(priceDataToday, currentTimeStr);
 
         // Common annotation config for current time line
-        const currentTimeAnnotation = {
-            type: 'line',
-            xMin: currentIndexSolar,
-            xMax: currentIndexSolar,
-            borderColor: 'rgba(255, 0, 0, 0.5)',
-            borderWidth: 2,
-            label: {
-                display: false
-            }
-        };
+        function createCurrentTimeAnnotation(index) {
+            return {
+                type: 'line',
+                xMin: index,
+                xMax: index,
+                borderColor: 'rgba(255, 0, 0, 0.5)',
+                borderWidth: 2,
+                label: {
+                    display: false
+                }
+            };
+        }
 
         function createSolarChart(canvasId, solarData, showCurrentTime = true) {
             const ctx = document.getElementById(canvasId).getContext('2d');
@@ -232,7 +234,7 @@
                     ...options.plugins,
                     annotation: {
                         annotations: {
-                            currentTime: currentTimeAnnotation
+                            currentTime: createCurrentTimeAnnotation(currentIndexSolar)
                         }
                     }
                 };
@@ -395,7 +397,7 @@
                     ...options.plugins,
                     annotation: {
                         annotations: {
-                            currentTime: currentTimeAnnotation
+                            currentTime: createCurrentTimeAnnotation(currentIndexSolar)
                         }
                     }
                 };
@@ -512,7 +514,7 @@
                     },
                     annotation: {
                         annotations: {
-                            currentTime: currentTimeAnnotation
+                            currentTime: createCurrentTimeAnnotation(currentIndexPrice)
                         }
                     }
                 },
