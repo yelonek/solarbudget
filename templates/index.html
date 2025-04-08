@@ -588,7 +588,7 @@
 
         // Price chart remains the same
         new Chart(document.getElementById('priceChartToday'), {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: priceDataToday.map(p => {
                     try {
@@ -610,8 +610,9 @@
                 datasets: [{
                     label: 'Energy Price Today (PLN/MWh)',
                     data: priceDataToday.map(p => p.price),
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
                     borderColor: 'rgb(75, 192, 192)',
-                    tension: 0.1
+                    borderWidth: 1
                 }]
             },
             options: {
@@ -633,6 +634,10 @@
                     }
                 },
                 scales: {
+                    x: {
+                        barPercentage: 0.8,
+                        categoryPercentage: 0.9
+                    },
                     y: {
                         beginAtZero: true
                     }
@@ -644,13 +649,13 @@
         const solarDataTomorrow = {{ solar_data_tomorrow|tojson }};
         const priceDataTomorrow = {{ prices_tomorrow|tojson }};
 
-        // Create tomorrow's charts using new functions
+        // Create tomorrow's charts using the same functions
         const solarChartTomorrow = createSolarChart('solarChartTomorrow', solarDataTomorrow, false);
         const valueChartTomorrow = createValueChart('valueChartTomorrow', solarDataTomorrow, priceDataTomorrow, false);
 
-        // Price chart remains the same
+        // Create tomorrow's price chart using the same configuration
         new Chart(document.getElementById('priceChartTomorrow'), {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: priceDataTomorrow.map(p => {
                     try {
@@ -672,13 +677,29 @@
                 datasets: [{
                     label: 'Energy Price Tomorrow (PLN/MWh)',
                     data: priceDataTomorrow.map(p => p.price),
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
                     borderColor: 'rgb(75, 192, 192)',
-                    tension: 0.1
+                    borderWidth: 1
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        align: 'start',
+                        labels: {
+                            boxWidth: 15,
+                            padding: 10
+                        }
+                    }
+                },
                 scales: {
+                    x: {
+                        barPercentage: 0.8,
+                        categoryPercentage: 0.9
+                    },
                     y: {
                         beginAtZero: true
                     }
