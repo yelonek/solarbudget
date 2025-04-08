@@ -74,6 +74,7 @@
                 </div>
                 <!-- Daily Totals -->
                 {% for date, data in daily_totals.items() %}
+                {% if loop.index <= 2 %}
                 <div class="bg-gray-50 p-4 rounded">
                     <div class="text-sm text-gray-600">{{ date }}</div>
                     <div class="font-medium">
@@ -93,6 +94,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 {% endfor %}
             </div>
         </div>
