@@ -608,8 +608,8 @@
                     }
                 }),
                 datasets: [{
-                    label: 'Energy Price Today (PLN/MWh)',
-                    data: priceDataToday.map(p => p.price),
+                    label: 'Energy Price Today (PLN/kWh)',
+                    data: priceDataToday.map(p => p.price / 1000),
                     backgroundColor: 'rgba(75, 192, 192, 0.5)',
                     borderColor: 'rgb(75, 192, 192)',
                     borderWidth: 1
@@ -675,8 +675,8 @@
                     }
                 }),
                 datasets: [{
-                    label: 'Energy Price Tomorrow (PLN/MWh)',
-                    data: priceDataTomorrow.map(p => p.price),
+                    label: 'Energy Price Tomorrow (PLN/kWh)',
+                    data: priceDataTomorrow.map(p => p.price / 1000),
                     backgroundColor: 'rgba(75, 192, 192, 0.5)',
                     borderColor: 'rgb(75, 192, 192)',
                     borderWidth: 1
