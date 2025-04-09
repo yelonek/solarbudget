@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SOLCAST_API_KEY=${SOLCAST_API_KEY}
+      - SOLCAST_SITE_ID=${SOLCAST_SITE_ID}
+      - CACHE_TIMEOUT=${CACHE_TIMEOUT}
+      - APP_MODE=${APP_MODE}
+    volumes:
+      - ./data:/app/data
+
+volumes:
+  sqlite_data: 

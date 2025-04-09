@@ -58,3 +58,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
+
+# Data directory
+data/
+*.db
