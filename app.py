@@ -112,7 +112,7 @@ def get_solcast_data():
         should_fetch_new = False
 
         if latest_data is None or (current_time - latest_data.timestamp) > timedelta(
-            minutes=15
+            minutes=30
         ):
             should_fetch_new = True
 
