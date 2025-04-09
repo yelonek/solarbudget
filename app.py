@@ -618,6 +618,7 @@ async def index(request: Request):
             "remaining_energy": remaining_energy,
             "remaining_energy10": remaining_energy10,
             "remaining_energy90": remaining_energy90,
+            "current_time": datetime.now(),
         },
     )
 

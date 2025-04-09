@@ -115,13 +115,13 @@
             </div>
         </div>
 
-        <!-- Today's Charts -->
+        <!-- Charts Grid -->
         <div class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4">Today's Forecast</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Today's Solar Production -->
                 <div class="bg-white rounded-lg shadow p-4">
-                    <h3 class="text-lg font-semibold mb-2">Solar Production</h3>
-                    <div class="chart-container">
+                    <h3 class="text-lg font-semibold mb-2">Today's Solar Production</h3>
+                    <div class="chart-container" style="height: 400px;">
                         <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'solarChartToday')">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
@@ -130,9 +130,11 @@
                         <canvas id="solarChartToday"></canvas>
                     </div>
                 </div>
+
+                <!-- Today's Energy Prices -->
                 <div class="bg-white rounded-lg shadow p-4">
-                    <h3 class="text-lg font-semibold mb-2">Energy Prices</h3>
-                    <div class="chart-container">
+                    <h3 class="text-lg font-semibold mb-2">Today's Energy Prices</h3>
+                    <div class="chart-container" style="height: 400px;">
                         <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'priceChartToday')">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
@@ -141,9 +143,24 @@
                         <canvas id="priceChartToday"></canvas>
                     </div>
                 </div>
+
+                <!-- Tomorrow's Solar Production -->
                 <div class="bg-white rounded-lg shadow p-4">
-                    <h3 class="text-lg font-semibold mb-2">Energy Value</h3>
-                    <div class="chart-container">
+                    <h3 class="text-lg font-semibold mb-2">Tomorrow's Solar Production</h3>
+                    <div class="chart-container" style="height: 400px;">
+                        <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'solarChartTomorrow')">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                            </svg>
+                        </div>
+                        <canvas id="solarChartTomorrow"></canvas>
+                    </div>
+                </div>
+
+                <!-- Today's Energy Value -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="text-lg font-semibold mb-2">Today's Energy Value</h3>
+                    <div class="chart-container" style="height: 400px;">
                         <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'valueChartToday')">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
@@ -153,26 +170,13 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Tomorrow's Charts -->
-        <div class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4">Tomorrow's Forecast</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Tomorrow's Price and Value Charts (shown only after 16:00) -->
+            {% if current_time.hour >= 16 %}
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-white rounded-lg shadow p-4">
-                    <h3 class="text-lg font-semibold mb-2">Solar Production</h3>
-                    <div class="chart-container">
-                        <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'solarChartTomorrow')">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                            </svg>
-                        </div>
-                        <canvas id="solarChartTomorrow"></canvas>
-                    </div>
-                </div>
-                <div class="bg-white rounded-lg shadow p-4">
-                    <h3 class="text-lg font-semibold mb-2">Energy Prices</h3>
-                    <div class="chart-container">
+                    <h3 class="text-lg font-semibold mb-2">Tomorrow's Energy Prices</h3>
+                    <div class="chart-container" style="height: 400px;">
                         <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'priceChartTomorrow')">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
@@ -181,9 +185,10 @@
                         <canvas id="priceChartTomorrow"></canvas>
                     </div>
                 </div>
+
                 <div class="bg-white rounded-lg shadow p-4">
-                    <h3 class="text-lg font-semibold mb-2">Energy Value</h3>
-                    <div class="chart-container">
+                    <h3 class="text-lg font-semibold mb-2">Tomorrow's Energy Value</h3>
+                    <div class="chart-container" style="height: 400px;">
                         <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'valueChartTomorrow')">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
@@ -193,6 +198,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 
