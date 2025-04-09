@@ -631,7 +631,36 @@
                     },
                     annotation: {
                         annotations: {
-                            currentTime: createCurrentTimeAnnotation(currentIndexPrice)
+                            currentTime: createCurrentTimeAnnotation(currentIndexPrice),
+                            highPriceThreshold: {
+                                type: 'line',
+                                yMin: 0.70,
+                                yMax: 0.70,
+                                borderColor: 'rgba(0, 100, 0, 0.7)',
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                label: {
+                                    display: true,
+                                    content: 'sell',
+                                    position: 'start',
+                                    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                                    color: 'rgb(0, 100, 0)',
+                                    font: {
+                                        size: 12,
+                                        weight: 'bold'
+                                    }
+                                }
+                            },
+                            highPriceZone: {
+                                type: 'box',
+                                yMin: 0.70,
+                                yMax: 'max',
+                                backgroundColor: 'rgba(0, 100, 0, 0.1)',
+                                borderColor: 'rgba(0, 100, 0, 0.1)',
+                                label: {
+                                    display: false
+                                }
+                            }
                         }
                     }
                 },
