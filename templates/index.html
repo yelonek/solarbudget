@@ -71,6 +71,22 @@
                             <div class="text-lg font-semibold" id="currentProduction">{{ "%.2f"|format(solar_data_today[0].pv_estimate) if solar_data_today else 0 }} kW</div>
                         </div>
                     </div>
+                    <div class="mt-4">
+                        <div class="text-sm text-gray-600">Already Produced Today</div>
+                        <div class="text-base font-medium">
+                            <span class="font-semibold">{{ "%.2f"|format(produced_energy) }} kWh</span>
+                            <span class="text-sm text-gray-500">
+                                ({{ "%.2f"|format(produced_energy10) }} - {{ "%.2f"|format(produced_energy90) }})
+                            </span>
+                        </div>
+                        <div class="text-sm text-gray-600 mt-2">Remaining Today</div>
+                        <div class="text-base font-medium">
+                            <span class="font-semibold">{{ "%.2f"|format(remaining_energy) }} kWh</span>
+                            <span class="text-sm text-gray-500">
+                                ({{ "%.2f"|format(remaining_energy10) }} - {{ "%.2f"|format(remaining_energy90) }})
+                            </span>
+                        </div>
+                    </div>
                 </div>
                 <!-- Daily Totals -->
                 {% for date, data in daily_totals.items() %}

@@ -566,6 +566,24 @@ async def index(request: Request):
     daily_value_10 = solar_data.resample("D")["value10"].sum()
     daily_value_90 = solar_data.resample("D")["value90"].sum()
 
+    # Calculate produced and remaining energy for today
+    today_data = solar_data[solar_data.index.date == today]
+    current_time = datetime.now()
+    if today_data.index.tz is not None:
+        current_time = current_time.astimezone(today_data.index.tz)
+
+    # Calculate produced energy (up to current time)
+    produced_data = today_data[today_data.index <= current_time]
+    produced_energy = float(produced_data["pv_estimate"].sum() * 0.25)
+    produced_energy10 = float(produced_data["pv_estimate10"].sum() * 0.25)
+    produced_energy90 = float(produced_data["pv_estimate90"].sum() * 0.25)
+
+    # Calculate remaining energy (after current time)
+    remaining_data = today_data[today_data.index > current_time]
+    remaining_energy = float(remaining_data["pv_estimate"].sum() * 0.25)
+    remaining_energy10 = float(remaining_data["pv_estimate10"].sum() * 0.25)
+    remaining_energy90 = float(remaining_data["pv_estimate90"].sum() * 0.25)
+
     daily_totals_dict = {
         timestamp.strftime("%Y-%m-%d"): {
             "energy": energy,
@@ -594,6 +612,12 @@ async def index(request: Request):
             "prices_tomorrow": prices_tomorrow,
             "daily_totals": daily_totals_dict,
             "current_price": current_price,
+            "produced_energy": produced_energy,
+            "produced_energy10": produced_energy10,
+            "produced_energy90": produced_energy90,
+            "remaining_energy": remaining_energy,
+            "remaining_energy10": remaining_energy10,
+            "remaining_energy90": remaining_energy90,
         },
     )
 
