@@ -449,8 +449,12 @@
             let cumulative10 = 0;
             let cumulative90 = 0;
             const valueData = solarData.map(d => {
-                const periodEnd = d.period_end.split('+')[0];
-                const matchingPrice = prices.find(p => p.datetime === periodEnd);
+                // Normalize timestamps by removing timezone and milliseconds
+                const periodEnd = new Date(d.period_end).toISOString().split('.')[0];
+                const matchingPrice = prices.find(p => {
+                    const priceTime = new Date(p.datetime).toISOString().split('.')[0];
+                    return priceTime === periodEnd;
+                });
                 const value = matchingPrice ? (d.pv_estimate / 1000 * matchingPrice.price) : 0;
                 const value10 = matchingPrice ? (d.pv_estimate10 / 1000 * matchingPrice.price) : 0;
                 const value90 = matchingPrice ? (d.pv_estimate90 / 1000 * matchingPrice.price) : 0;
@@ -606,40 +610,10 @@
             return chart;
         }
 
-        // Create today's charts using new functions
-        const solarChartToday = createSolarChart('solarChartToday', solarDataToday);
-        const valueChartToday = createValueChart('valueChartToday', solarDataToday, priceDataToday);
-
-        // Price chart remains the same
-        new Chart(document.getElementById('priceChartToday'), {
-            type: 'bar',
-            data: {
-                labels: priceDataToday.map(p => {
-                    try {
-                        const date = new Date(p.datetime);
-                        if (isNaN(date.getTime())) {
-                            console.error('Invalid date:', p.datetime);
-                            return 'Invalid Date';
-                        }
-                        return date.toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit',
-                            hour12: false 
-                        });
-                    } catch (e) {
-                        console.error('Error parsing date:', p.datetime, e);
-                        return 'Invalid Date';
-                    }
-                }),
-                datasets: [{
-                    label: 'Energy Price Today (PLN/kWh)',
-                    data: priceDataToday.map(p => p.price / 1000),
-                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
-                    borderColor: 'rgb(75, 192, 192)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
+        function createPriceChart(canvasId, priceData, showCurrentTime = true) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            const options = {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
@@ -653,7 +627,6 @@
                     },
                     annotation: {
                         annotations: {
-                            currentTime: createCurrentTimeAnnotation(currentIndexPrice),
                             highPriceThreshold: {
                                 type: 'line',
                                 yMin: 0.70,
@@ -695,8 +668,48 @@
                         beginAtZero: true
                     }
                 }
+            };
+
+            if (showCurrentTime) {
+                options.plugins.annotation.annotations.currentTime = createCurrentTimeAnnotation(currentIndexPrice);
             }
-        });
+
+            return new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: priceData.map(p => {
+                        try {
+                            const date = new Date(p.datetime);
+                            if (isNaN(date.getTime())) {
+                                console.error('Invalid date:', p.datetime);
+                                return 'Invalid Date';
+                            }
+                            return date.toLocaleTimeString([], { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: false 
+                            });
+                        } catch (e) {
+                            console.error('Error parsing date:', p.datetime, e);
+                            return 'Invalid Date';
+                        }
+                    }),
+                    datasets: [{
+                        label: 'Energy Price (PLN/kWh)',
+                        data: priceData.map(p => p.price / 1000),
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 1
+                    }]
+                },
+                options: options
+            });
+        }
+
+        // Create today's charts using new functions
+        const solarChartToday = createSolarChart('solarChartToday', solarDataToday);
+        const valueChartToday = createValueChart('valueChartToday', solarDataToday, priceDataToday);
+        const priceChartToday = createPriceChart('priceChartToday', priceDataToday);
 
         // Tomorrow's Charts
         const solarDataTomorrow = {{ solar_data_tomorrow|tojson }};
@@ -705,60 +718,7 @@
         // Create tomorrow's charts using the same functions
         const solarChartTomorrow = createSolarChart('solarChartTomorrow', solarDataTomorrow, false);
         const valueChartTomorrow = createValueChart('valueChartTomorrow', solarDataTomorrow, priceDataTomorrow, false);
-
-        // Create tomorrow's price chart using the same configuration
-        new Chart(document.getElementById('priceChartTomorrow'), {
-            type: 'bar',
-            data: {
-                labels: priceDataTomorrow.map(p => {
-                    try {
-                        const date = new Date(p.datetime);
-                        if (isNaN(date.getTime())) {
-                            console.error('Invalid date:', p.datetime);
-                            return 'Invalid Date';
-                        }
-                        return date.toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit',
-                            hour12: false 
-                        });
-                    } catch (e) {
-                        console.error('Error parsing date:', p.datetime, e);
-                        return 'Invalid Date';
-                    }
-                }),
-                datasets: [{
-                    label: 'Energy Price Tomorrow (PLN/kWh)',
-                    data: priceDataTomorrow.map(p => p.price / 1000),
-                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
-                    borderColor: 'rgb(75, 192, 192)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        align: 'start',
-                        labels: {
-                            boxWidth: 15,
-                            padding: 10
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        barPercentage: 0.8,
-                        categoryPercentage: 0.9
-                    },
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
+        const priceChartTomorrow = createPriceChart('priceChartTomorrow', priceDataTomorrow, false);
 
         // Update current values immediately
         const currentPrice = document.getElementById('currentPrice');
