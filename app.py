@@ -286,6 +286,12 @@ def get_solcast_data():
 
     except Exception as e:
         logger.error(f"Unexpected error in get_solcast_data: {e}")
+        if latest_data and latest_data.data:
+            logger.info("Using latest cached data due to unexpected error")
+            df = pd.DataFrame.from_records(latest_data.data)
+            df["period_end"] = pd.to_datetime(df["period_end"])
+            df = df.set_index("period_end")
+            return df
         return pd.DataFrame()
     finally:
         session.close()
