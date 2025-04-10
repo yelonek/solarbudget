@@ -62,7 +62,8 @@ class PSEData(Base):
 
 
 # Create database engine
-engine = create_engine("sqlite:///data/solarbudget.db")
+db_path = os.getenv("DATABASE_URL", "sqlite:///data/solarbudget.db")
+engine = create_engine(db_path)
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 

@@ -20,8 +20,15 @@ RUN mkdir -p /app/data /app/logs /app/templates /app/static
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN useradd -m appuser && chown -R appuser:appuser /app
+# Create non-root user and set permissions
+RUN useradd -m appuser && \
+    chown -R appuser:appuser /app && \
+    chmod -R 755 /app && \
+    chmod -R 777 /app/data /app/logs
+
+# Set environment variables
+ENV DATABASE_URL="sqlite:////app/data/solarbudget.db"
+
 USER appuser
 
 # Expose port
