@@ -25,6 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import sqlite3
 
 # Set up logging
 logging.basicConfig(
@@ -103,7 +104,32 @@ def check_database_health():
             logger.error(f"Database file does not exist at {db_file}")
             return False
 
-        # Check if we can read from the database
+        # Check using raw SQLite first
+        logger.info("Checking database using raw SQLite...")
+        conn = sqlite3.connect(db_file)
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*), MIN(timestamp), MAX(timestamp) FROM solcast_data")
+        count, min_ts, max_ts = cur.fetchone()
+        logger.info(f"SQLite found {count} records, from {min_ts} to {max_ts}")
+
+        # Check data format
+        cur.execute(
+            "SELECT id, timestamp, data, created_at FROM solcast_data ORDER BY timestamp DESC LIMIT 1"
+        )
+        row = cur.fetchone()
+        if row:
+            logger.info(
+                f"Latest record from SQLite: id={row[0]}, timestamp={row[1]}, created_at={row[3]}"
+            )
+            logger.info(
+                f"Data type: {type(row[2])}, length: {len(row[2]) if isinstance(row[2], (str, bytes)) else 'N/A'}"
+            )
+            logger.info(
+                f"Data sample: {row[2][:100] if isinstance(row[2], (str, bytes)) else row[2]}"
+            )
+        conn.close()
+
+        # Check if we can read from the database using SQLAlchemy
         session = Session()
         try:
             # Check if tables exist
@@ -117,9 +143,29 @@ def check_database_health():
                 return False
 
             # Check if we can read from the table
-            logger.info("Checking if we can read from solcast_data table...")
+            logger.info(
+                "Checking if we can read from solcast_data table using SQLAlchemy..."
+            )
+            records = (
+                session.query(SolcastData)
+                .order_by(SolcastData.timestamp.desc())
+                .limit(1)
+                .all()
+            )
             count = session.query(SolcastData).count()
-            logger.info(f"Found {count} records in solcast_data table")
+            logger.info(f"SQLAlchemy found {count} records")
+
+            if records:
+                record = records[0]
+                logger.info(
+                    f"Latest record from SQLAlchemy: id={record.id}, timestamp={record.timestamp}"
+                )
+                logger.info(
+                    f"Data type: {type(record.data)}, length: {len(record.data) if record.data else 0}"
+                )
+                logger.info(
+                    f"Data sample: {str(record.data)[:100] if record.data else None}"
+                )
 
             # Check if we can write to the table
             logger.info("Checking if we can write to solcast_data table...")
