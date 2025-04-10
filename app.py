@@ -83,14 +83,14 @@ class PSEData(Base):
 # Create database engine
 db_path = os.getenv("DATABASE_URL", "sqlite:///data/solarbudget.db")
 if db_path.startswith("sqlite:///"):
-    # Extract the path part
-    path_part = db_path[10:]
-    # Get absolute path relative to current directory
-    abs_path = os.path.abspath(path_part)
+    # Extract the path part after sqlite:///
+    db_file = db_path.replace("sqlite:///", "")
     # Ensure the directory exists
-    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-    # Create the engine with the absolute path
-    engine = create_engine(f"sqlite:///{abs_path}")
+    os.makedirs(os.path.dirname(os.path.abspath(db_file)), exist_ok=True)
+    logger.info(
+        f"Database directory created at {os.path.dirname(os.path.abspath(db_file))}"
+    )
+    engine = create_engine(db_path)
 else:
     engine = create_engine(db_path)
 
@@ -100,7 +100,9 @@ def check_database_health():
     try:
         # Check if database file exists
         db_file = (
-            abs_path if "abs_path" in locals() else db_path.replace("sqlite:///", "")
+            os.path.abspath(db_file)
+            if "db_file" in locals()
+            else db_path.replace("sqlite:///", "")
         )
         logger.info(f"Checking database file: {db_file}")
         if os.path.exists(db_file):
