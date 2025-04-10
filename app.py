@@ -89,6 +89,7 @@ def get_solcast_data():
     session = Session()
     try:
         # Get all recent records, ordered by timestamp
+        logger.info("Querying database for recent records")
         recent_records = (
             session.query(SolcastData)
             .order_by(SolcastData.timestamp.desc())
@@ -96,29 +97,28 @@ def get_solcast_data():
             .all()
         )
 
+        logger.info(f"Found {len(recent_records)} recent records")
+        if recent_records:
+            logger.info(f"First record timestamp: {recent_records[0].timestamp}")
+            logger.info(f"First record data type: {type(recent_records[0].data)}")
+            if recent_records[0].data:
+                logger.info(f"First record data length: {len(recent_records[0].data)}")
+                logger.info(
+                    f"First record data sample: {recent_records[0].data[:1] if isinstance(recent_records[0].data, list) else 'Not a list'}"
+                )
+            if len(recent_records) > 1:
+                logger.info(f"Second record timestamp: {recent_records[1].timestamp}")
+                logger.info(f"Second record data type: {type(recent_records[1].data)}")
+                if recent_records[1].data:
+                    logger.info(
+                        f"Second record data length: {len(recent_records[1].data)}"
+                    )
+                    logger.info(
+                        f"Second record data sample: {recent_records[1].data[:1] if isinstance(recent_records[1].data, list) else 'Not a list'}"
+                    )
+
         latest_data = recent_records[0] if recent_records else None
         previous_data = recent_records[1] if len(recent_records) > 1 else None
-
-        logger.info(f"Found {len(recent_records)} recent records")
-        if latest_data:
-            logger.info(f"Latest data timestamp: {latest_data.timestamp}")
-            if latest_data.data:
-                logger.info(
-                    f"Latest data first time: {latest_data.data[0]['period_end']}"
-                )
-                logger.info(
-                    f"Latest data last time: {latest_data.data[-1]['period_end']}"
-                )
-
-        if previous_data:
-            logger.info(f"Previous data timestamp: {previous_data.timestamp}")
-            if previous_data.data:
-                logger.info(
-                    f"Previous data first time: {previous_data.data[0]['period_end']}"
-                )
-                logger.info(
-                    f"Previous data last time: {previous_data.data[-1]['period_end']}"
-                )
 
         current_time = datetime.utcnow()
         should_fetch_new = False
@@ -127,6 +127,7 @@ def get_solcast_data():
             minutes=30
         ):
             should_fetch_new = True
+            logger.info("Will fetch new data from API")
 
         df = None
         if should_fetch_new:
@@ -211,12 +212,13 @@ def get_solcast_data():
 
             except Exception as e:
                 logger.error(f"Error fetching new Solcast data: {e}")
-                if latest_data:
+                if latest_data and latest_data.data:
                     logger.info("Using latest cached data due to API error")
                     df = pd.DataFrame.from_records(latest_data.data)
                     df["period_end"] = pd.to_datetime(df["period_end"])
                     df = df.set_index("period_end")
                 else:
+                    logger.error("No cached data available")
                     return pd.DataFrame()
 
         else:
