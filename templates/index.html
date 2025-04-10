@@ -117,7 +117,8 @@
 
         <!-- Charts Grid -->
         <div class="mb-8">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- First Row: Solar Production -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <!-- Today's Solar Production -->
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Today's Solar Production</h3>
@@ -131,19 +132,6 @@
                     </div>
                 </div>
 
-                <!-- Today's Energy Prices -->
-                <div class="bg-white rounded-lg shadow p-4">
-                    <h3 class="text-lg font-semibold mb-2">Today's Energy Prices</h3>
-                    <div class="chart-container" style="height: 400px;">
-                        <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'priceChartToday')">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                            </svg>
-                        </div>
-                        <canvas id="priceChartToday"></canvas>
-                    </div>
-                </div>
-
                 <!-- Tomorrow's Solar Production -->
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Tomorrow's Solar Production</h3>
@@ -154,6 +142,22 @@
                             </svg>
                         </div>
                         <canvas id="solarChartTomorrow"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Second Row: Today's Energy Prices and Value -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Today's Energy Prices -->
+                <div class="bg-white rounded-lg shadow p-4">
+                    <h3 class="text-lg font-semibold mb-2">Today's Energy Prices</h3>
+                    <div class="chart-container" style="height: 400px;">
+                        <div class="zoom-icon" onclick="toggleFullscreen(this.parentElement, 'priceChartToday')">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                            </svg>
+                        </div>
+                        <canvas id="priceChartToday"></canvas>
                     </div>
                 </div>
 
@@ -171,9 +175,9 @@
                 </div>
             </div>
 
-            <!-- Tomorrow's Price and Value Charts (shown only after 16:00) -->
+            <!-- Third Row: Tomorrow's Energy Prices and Value (shown only after 16:00) -->
             {% if current_time.hour >= 16 %}
-            <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-white rounded-lg shadow p-4">
                     <h3 class="text-lg font-semibold mb-2">Tomorrow's Energy Prices</h3>
                     <div class="chart-container" style="height: 400px;">
