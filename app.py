@@ -13,7 +13,16 @@ from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
 import json
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Float, JSON
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Float,
+    JSON,
+    inspect,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -75,8 +84,74 @@ if db_path.startswith("sqlite:///"):
 else:
     engine = create_engine(db_path)
 
+
+def check_database_health():
+    """Check database health on startup."""
+    try:
+        # Check if database file exists
+        db_file = (
+            abs_path if "abs_path" in locals() else db_path.replace("sqlite:///", "")
+        )
+        logger.info(f"Checking database file: {db_file}")
+        if os.path.exists(db_file):
+            logger.info(f"Database file exists at {db_file}")
+            logger.info(
+                f"Database file permissions: {oct(os.stat(db_file).st_mode)[-3:]}"
+            )
+            logger.info(f"Database file size: {os.path.getsize(db_file)} bytes")
+        else:
+            logger.error(f"Database file does not exist at {db_file}")
+            return False
+
+        # Check if we can read from the database
+        session = Session()
+        try:
+            # Check if tables exist
+            logger.info("Checking database schema...")
+            inspector = inspect(engine)
+            tables = inspector.get_table_names()
+            logger.info(f"Found tables: {tables}")
+
+            if "solcast_data" not in tables:
+                logger.error("solcast_data table does not exist")
+                return False
+
+            # Check if we can read from the table
+            logger.info("Checking if we can read from solcast_data table...")
+            count = session.query(SolcastData).count()
+            logger.info(f"Found {count} records in solcast_data table")
+
+            # Check if we can write to the table
+            logger.info("Checking if we can write to solcast_data table...")
+            test_data = SolcastData(
+                timestamp=datetime.utcnow(), data=[{"test": "data"}]
+            )
+            session.add(test_data)
+            session.commit()
+            logger.info("Successfully wrote test data to database")
+            session.rollback()
+            logger.info("Successfully rolled back test data")
+
+            return True
+        except Exception as e:
+            logger.error(f"Error checking database: {e}")
+            return False
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error(f"Error in database health check: {e}")
+        return False
+
+
+# Create tables if they don't exist
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
+
+# Check database health on startup
+if not check_database_health():
+    logger.error("Database health check failed")
+else:
+    logger.info("Database health check passed")
 
 app = FastAPI(title="Solar Budget")
 templates = Jinja2Templates(directory="templates")
