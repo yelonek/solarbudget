@@ -63,7 +63,18 @@ class PSEData(Base):
 
 # Create database engine
 db_path = os.getenv("DATABASE_URL", "sqlite:///data/solarbudget.db")
-engine = create_engine(db_path)
+if db_path.startswith("sqlite:///"):
+    # Extract the path part
+    path_part = db_path[10:]
+    # Get absolute path relative to current directory
+    abs_path = os.path.abspath(path_part)
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+    # Create the engine with the absolute path
+    engine = create_engine(f"sqlite:///{abs_path}")
+else:
+    engine = create_engine(db_path)
+
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 

@@ -27,7 +27,7 @@ RUN useradd -m appuser && \
     chmod -R 777 /app/data /app/logs
 
 # Set environment variables
-ENV DATABASE_URL="sqlite:////app/data/solarbudget.db"
+ENV DATABASE_URL="sqlite:///data/solarbudget.db"
 
 USER appuser
 
