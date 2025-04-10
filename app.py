@@ -61,6 +61,15 @@ class SolcastData(Base):
     data = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    @property
+    def data_json(self):
+        """Convert string data to JSON if needed."""
+        if isinstance(self.data, str):
+            import json
+
+            return json.loads(self.data)
+        return self.data
+
 
 class PSEData(Base):
     __tablename__ = "pse_data"
@@ -223,20 +232,9 @@ def get_solcast_data():
             logger.info(f"First record timestamp: {recent_records[0].timestamp}")
             logger.info(f"First record data type: {type(recent_records[0].data)}")
             if recent_records[0].data:
-                logger.info(f"First record data length: {len(recent_records[0].data)}")
-                logger.info(
-                    f"First record data sample: {recent_records[0].data[:1] if isinstance(recent_records[0].data, list) else 'Not a list'}"
-                )
-            if len(recent_records) > 1:
-                logger.info(f"Second record timestamp: {recent_records[1].timestamp}")
-                logger.info(f"Second record data type: {type(recent_records[1].data)}")
-                if recent_records[1].data:
-                    logger.info(
-                        f"Second record data length: {len(recent_records[1].data)}"
-                    )
-                    logger.info(
-                        f"Second record data sample: {recent_records[1].data[:1] if isinstance(recent_records[1].data, list) else 'Not a list'}"
-                    )
+                data = recent_records[0].data_json
+                logger.info(f"First record data length: {len(data)}")
+                logger.info(f"First record data sample: {str(data[:1])}")
 
         latest_data = recent_records[0] if recent_records else None
         previous_data = recent_records[1] if len(recent_records) > 1 else None
@@ -292,7 +290,7 @@ def get_solcast_data():
                     )
 
                     if previous_data:
-                        prev_df = pd.DataFrame.from_records(previous_data.data)
+                        prev_df = pd.DataFrame.from_records(previous_data.data_json)
                         prev_df["period_end"] = pd.to_datetime(prev_df["period_end"])
                         prev_df = prev_df.set_index("period_end")
 
@@ -333,9 +331,9 @@ def get_solcast_data():
 
             except Exception as e:
                 logger.error(f"Error fetching new Solcast data: {e}")
-                if latest_data and latest_data.data:
+                if latest_data:
                     logger.info("Using latest cached data due to API error")
-                    df = pd.DataFrame.from_records(latest_data.data)
+                    df = pd.DataFrame.from_records(latest_data.data_json)
                     df["period_end"] = pd.to_datetime(df["period_end"])
                     df = df.set_index("period_end")
                 else:
@@ -345,7 +343,7 @@ def get_solcast_data():
         else:
             # Use cached data
             logger.info("Using cached Solcast data from database")
-            df = pd.DataFrame.from_records(latest_data.data)
+            df = pd.DataFrame.from_records(latest_data.data_json)
             df["period_end"] = pd.to_datetime(df["period_end"])
             df = df.set_index("period_end")
 
@@ -365,7 +363,7 @@ def get_solcast_data():
             )
 
             if previous_data:
-                prev_df = pd.DataFrame.from_records(previous_data.data)
+                prev_df = pd.DataFrame.from_records(previous_data.data_json)
                 prev_df["period_end"] = pd.to_datetime(prev_df["period_end"])
                 prev_df = prev_df.set_index("period_end")
 
@@ -407,9 +405,9 @@ def get_solcast_data():
 
     except Exception as e:
         logger.error(f"Unexpected error in get_solcast_data: {e}")
-        if latest_data and latest_data.data:
+        if latest_data:
             logger.info("Using latest cached data due to unexpected error")
-            df = pd.DataFrame.from_records(latest_data.data)
+            df = pd.DataFrame.from_records(latest_data.data_json)
             df["period_end"] = pd.to_datetime(df["period_end"])
             df = df.set_index("period_end")
             return df
