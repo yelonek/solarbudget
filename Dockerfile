@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-RUN /root/.local/bin/uv pip install -r requirements.txt
+RUN /root/.local/bin/uv pip install --system -r requirements.txt
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data
