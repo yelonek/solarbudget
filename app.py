@@ -198,6 +198,13 @@ def check_database_health():
         return False
 
 
+def init_db():
+    """Initialize database and create tables."""
+    logger.info("Initializing database...")
+    Base.metadata.create_all(engine)
+    logger.info("Database initialized")
+
+
 # Create tables if they don't exist
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
@@ -228,16 +235,34 @@ def get_solcast_data():
         )
 
         logger.info(f"Found {len(recent_records)} recent records")
-        if recent_records:
-            logger.info(f"First record timestamp: {recent_records[0].timestamp}")
-            logger.info(f"First record data type: {type(recent_records[0].data)}")
-            if recent_records[0].data:
-                data = recent_records[0].data_json
-                logger.info(f"First record data length: {len(data)}")
-                logger.info(f"First record data sample: {str(data[:1])}")
+        latest_data = None
+        previous_data = None
 
-        latest_data = recent_records[0] if recent_records else None
-        previous_data = recent_records[1] if len(recent_records) > 1 else None
+        if recent_records:
+            # Validate data format
+            for record in recent_records:
+                try:
+                    data = record.data_json
+                    if (
+                        not isinstance(data, list)
+                        or not data
+                        or "period_end" not in data[0]
+                    ):
+                        logger.error(
+                            f"Invalid data format in record {record.id}, removing..."
+                        )
+                        session.delete(record)
+                        continue
+
+                    if latest_data is None:
+                        latest_data = record
+                    elif previous_data is None:
+                        previous_data = record
+                except Exception as e:
+                    logger.error(f"Error parsing record {record.id}: {e}, removing...")
+                    session.delete(record)
+
+            session.commit()
 
         current_time = datetime.utcnow()
         should_fetch_new = False
