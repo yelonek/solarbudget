@@ -14,9 +14,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN /root/.local/bin/uv pip install --system -r requirements.txt
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data
-ENV DATABASE_URL="sqlite:///app/data/solarbudget.db"
+# Create required directories
+RUN mkdir -p /app/data /app/logs /app/templates /app/static
 
 # Copy application code
 COPY . .
