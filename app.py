@@ -50,7 +50,24 @@ logger.addHandler(file_handler)
 load_dotenv()
 
 # Database setup
+db_path = os.getenv("DATABASE_URL", "sqlite:///app/data/solarbudget.db")
+if db_path.startswith("sqlite:///"):
+    # Extract the path part after sqlite:///
+    db_file = db_path.replace("sqlite:///", "")
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(db_file)), exist_ok=True)
+    logger.info(
+        f"Database directory created at {os.path.dirname(os.path.abspath(db_file))}"
+    )
+    engine = create_engine(db_path)
+else:
+    engine = create_engine(db_path)
+
 Base = declarative_base()
+Session = sessionmaker(bind=engine)
+
+# Create tables if they don't exist
+Base.metadata.create_all(engine)
 
 
 class SolcastData(Base):
@@ -78,21 +95,6 @@ class PSEData(Base):
     timestamp = Column(DateTime, nullable=False)
     data = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-
-# Create database engine
-db_path = os.getenv("DATABASE_URL", "sqlite:///data/solarbudget.db")
-if db_path.startswith("sqlite:///"):
-    # Extract the path part after sqlite:///
-    db_file = db_path.replace("sqlite:///", "")
-    # Ensure the directory exists
-    os.makedirs(os.path.dirname(os.path.abspath(db_file)), exist_ok=True)
-    logger.info(
-        f"Database directory created at {os.path.dirname(os.path.abspath(db_file))}"
-    )
-    engine = create_engine(db_path)
-else:
-    engine = create_engine(db_path)
 
 
 def check_database_health():
@@ -206,10 +208,6 @@ def init_db():
     Base.metadata.create_all(engine)
     logger.info("Database initialized")
 
-
-# Create tables if they don't exist
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
 
 # Check database health on startup
 if not check_database_health():
