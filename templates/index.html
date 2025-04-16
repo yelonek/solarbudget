@@ -728,8 +728,12 @@
         const currentPrice = document.getElementById('currentPrice');
         const currentProduction = document.getElementById('currentProduction');
 
-        if (currentIndexSolar >= 0 && solarDataToday[currentIndexSolar]) {
-            currentProduction.textContent = solarDataToday[currentIndexSolar].pv_estimate.toFixed(2) + ' kW';
+        // Find the closest solar data point to current time
+        if (currentIndexSolar >= 0 && currentIndexSolar < solarDataToday.length) {
+            const currentData = solarDataToday[currentIndexSolar];
+            if (currentData) {
+                currentProduction.textContent = currentData.pv_estimate.toFixed(2) + ' kW';
+            }
         }
         if (currentIndexPrice >= 0 && priceDataToday[currentIndexPrice]) {
             const priceInPLNperMWh = priceDataToday[currentIndexPrice].price;

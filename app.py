@@ -26,6 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import sqlite3
+import pytz
 
 # Set up logging
 logging.basicConfig(
@@ -621,15 +622,17 @@ def calculate_energy_value(solar_data_df, prices):
 
     # Clean and parse datetime
     prices_df["datetime"] = prices_df["datetime"].apply(clean_datetime)
-    # Parse as naive datetime first, then localize to UTC
-    prices_df["datetime"] = pd.to_datetime(prices_df["datetime"]).dt.tz_localize("UTC")
+    # Parse datetime and convert to local timezone (Europe/Warsaw)
+    prices_df["datetime"] = pd.to_datetime(prices_df["datetime"]).dt.tz_localize(
+        "Europe/Warsaw"
+    )
     prices_df = prices_df.set_index("datetime")
 
-    # Ensure solar data is in UTC
+    # Ensure solar data is in the same timezone
     if solar_data_df.index.tz is None:
-        solar_data_df.index = solar_data_df.index.tz_localize("UTC")
-    elif str(solar_data_df.index.tz) != "UTC":
-        solar_data_df.index = solar_data_df.index.tz_convert("UTC")
+        solar_data_df.index = solar_data_df.index.tz_localize("Europe/Warsaw")
+    elif str(solar_data_df.index.tz) != "Europe/Warsaw":
+        solar_data_df.index = solar_data_df.index.tz_convert("Europe/Warsaw")
 
     # Resample prices to 15-min intervals to match solar data
     prices_df = prices_df.resample("15min").ffill()
@@ -668,32 +671,37 @@ async def index(request: Request):
         if isinstance(record["period_end"], pd.Timestamp):
             record["period_end"] = record["period_end"].isoformat()
 
-    # Separate data into today and tomorrow
-    today = datetime.now().date()
+    # Separate data into today and tomorrow using local timezone
+    local_tz = pytz.timezone("Europe/Warsaw")
+    today = datetime.now(local_tz).date()
     tomorrow = today + timedelta(days=1)
 
     # Filter solar data
     solar_data_today = [
         record
         for record in solar_data_dict
-        if datetime.fromisoformat(record["period_end"]).date() == today
+        if datetime.fromisoformat(record["period_end"]).astimezone(local_tz).date()
+        == today
     ]
     solar_data_tomorrow = [
         record
         for record in solar_data_dict
-        if datetime.fromisoformat(record["period_end"]).date() == tomorrow
+        if datetime.fromisoformat(record["period_end"]).astimezone(local_tz).date()
+        == tomorrow
     ]
 
     # Filter price data
     prices_today = [
         price
         for price in prices
-        if datetime.fromisoformat(price["datetime"]).date() == today
+        if datetime.fromisoformat(price["datetime"]).astimezone(local_tz).date()
+        == today
     ]
     prices_tomorrow = [
         price
         for price in prices
-        if datetime.fromisoformat(price["datetime"]).date() == tomorrow
+        if datetime.fromisoformat(price["datetime"]).astimezone(local_tz).date()
+        == tomorrow
     ]
 
     # Sort prices by datetime to ensure correct ordering
@@ -701,14 +709,19 @@ async def index(request: Request):
     prices_tomorrow.sort(key=lambda x: x["datetime"])
 
     # Find current price (closest to current time)
-    current_time = datetime.now()
+    current_time = datetime.now(local_tz)
     current_hour = current_time.replace(minute=0, second=0, microsecond=0)
 
     # Find the price entry closest to current time
     current_price = None
     if prices_today:
         time_diffs = [
-            abs((datetime.fromisoformat(p["datetime"]) - current_hour).total_seconds())
+            abs(
+                (
+                    datetime.fromisoformat(p["datetime"]).astimezone(local_tz)
+                    - current_hour
+                ).total_seconds()
+            )
             for p in prices_today
         ]
         current_price = prices_today[time_diffs.index(min(time_diffs))]
@@ -731,10 +744,8 @@ async def index(request: Request):
     daily_value_90 = solar_data.resample("D")["value90"].sum()
 
     # Calculate produced and remaining energy for today
-    today_data = solar_data[solar_data.index.date == today]
-    current_time = datetime.now()
-    if today_data.index.tz is not None:
-        current_time = current_time.astimezone(today_data.index.tz)
+    today_data = solar_data[solar_data.index.tz_convert(local_tz).date == today]
+    current_time = datetime.now(local_tz)
 
     # Calculate produced energy (up to current time)
     produced_data = today_data[today_data.index <= current_time]
@@ -782,7 +793,7 @@ async def index(request: Request):
             "remaining_energy": remaining_energy,
             "remaining_energy10": remaining_energy10,
             "remaining_energy90": remaining_energy90,
-            "current_time": datetime.now(),
+            "current_time": datetime.now(local_tz),
         },
     )
 
