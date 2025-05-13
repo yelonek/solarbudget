@@ -257,13 +257,14 @@
             target.setHours(hours, minutes, 0, 0);
             
             // Find the closest time that's not in the future
-            let closestIndex = 0;
+            let closestIndex = -1;
             let minDiff = Infinity;
             
             for (let i = 0; i < data.length; i++) {
                 const date = new Date(data[i].period_end || data[i].datetime);
-                const diff = target.getTime() - date.getTime();
-                if (diff >= 0 && diff < minDiff) {
+                // Convert both times to UTC for comparison
+                const diff = Math.abs(target.getTime() - date.getTime());
+                if (diff < minDiff) {
                     minDiff = diff;
                     closestIndex = i;
                 }
@@ -731,10 +732,16 @@
         // Find the closest solar data point to current time
         if (currentIndexSolar >= 0 && currentIndexSolar < solarDataToday.length) {
             const currentData = solarDataToday[currentIndexSolar];
-            if (currentData) {
-                currentProduction.textContent = currentData.pv_estimate.toFixed(2) + ' kW';
+            if (currentData && currentData.pv_estimate !== undefined) {
+                const productionValue = Math.max(0, currentData.pv_estimate);  // Ensure non-negative
+                currentProduction.textContent = productionValue.toFixed(2) + ' kW';
+            } else {
+                currentProduction.textContent = '0.00 kW';
             }
+        } else {
+            currentProduction.textContent = '0.00 kW';
         }
+
         if (currentIndexPrice >= 0 && priceDataToday[currentIndexPrice]) {
             const priceInPLNperMWh = priceDataToday[currentIndexPrice].price;
             const priceInPLNperKWh = (priceInPLNperMWh / 1000).toFixed(3);
