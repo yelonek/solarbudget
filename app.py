@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 import logging
 from logging.handlers import RotatingFileHandler
-import json
+
 from sqlalchemy import (
     create_engine,
     Column,
@@ -23,6 +23,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import sqlite3
 import pytz
+import sys
 
 # Set up logging
 logging.basicConfig(
@@ -794,8 +795,83 @@ async def index(request: Request):
     )
 
 
+def check_db_checklist():
+    print("\n=== DATABASE CHECKLIST ===")
+    db_file_path = db_path.replace("sqlite:///", "")
+    # 1. Czy plik bazy istnieje?
+    if os.path.exists(db_file_path):
+        print(f"CHECK: Plik bazy '{db_file_path}' istnieje ... OK")
+    else:
+        print(f"CHECK: Plik bazy '{db_file_path}' nie istnieje ... ERROR")
+        return
+
+    # 2. Czy plik jest prawidłową bazą SQLite?
+    try:
+        conn = sqlite3.connect(db_file_path)
+        conn.execute("PRAGMA schema_version;")
+        print("CHECK: Plik jest prawidłową bazą SQLite ... OK")
+    except Exception as e:
+        print(f"CHECK: Plik nie jest prawidłową bazą SQLite ... ERROR: {e}")
+        return
+
+    # 3. Czy wymagane tabele istnieją?
+    required_tables = ["solcast_data", "pse_data"]
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = {row[0] for row in cur.fetchall()}
+        for table in required_tables:
+            if table in tables:
+                print(f"CHECK: Tabela '{table}' istnieje ... OK")
+            else:
+                print(f"CHECK: Tabela '{table}' nie istnieje ... ERROR")
+        if not all(t in tables for t in required_tables):
+            print("CHECK: Brak wymaganych tabel. Spróbuj zainicjować bazę/migrację.")
+            return
+    except Exception as e:
+        print(f"CHECK: Błąd przy sprawdzaniu tabel ... ERROR: {e}")
+        return
+
+    # 4. Czy dane mają odpowiedni format?
+    try:
+        # Sprawdź przykładowy rekord z solcast_data
+        cur.execute("SELECT id, timestamp, data, created_at FROM solcast_data LIMIT 1;")
+        row = cur.fetchone()
+        if row:
+            if not isinstance(row[2], (str, bytes)):
+                print("CHECK: Kolumna 'data' w solcast_data nie jest typu tekstowego ... ERROR")
+            else:
+                import json
+                try:
+                    json.loads(row[2])
+                    print("CHECK: Kolumna 'data' w solcast_data ma poprawny format JSON ... OK")
+                except Exception as e:
+                    print(f"CHECK: Kolumna 'data' w solcast_data nie jest poprawnym JSON ... ERROR: {e}")
+        else:
+            print("CHECK: Brak danych w solcast_data (nie sprawdzam formatu) ... OK")
+    except Exception as e:
+        print(f"CHECK: Błąd przy sprawdzaniu formatu danych ... ERROR: {e}")
+
+    # 5. Czy potrzeba migracji? (np. brak kolumn)
+    try:
+        cur.execute("PRAGMA table_info(solcast_data);")
+        columns = {row[1] for row in cur.fetchall()}
+        expected_columns = {"id", "timestamp", "data", "created_at"}
+        missing = expected_columns - columns
+        if missing:
+            print(f"CHECK: Brak kolumn w solcast_data: {missing} ... MIGRACJA WYMAGANA")
+        else:
+            print("CHECK: Struktura tabeli solcast_data ... OK")
+    except Exception as e:
+        print(f"CHECK: Błąd przy sprawdzaniu struktury tabeli ... ERROR: {e}")
+    finally:
+        conn.close()
+    print("=== KONIEC CHECKLISTY ===\n")
+
+
 if __name__ == "__main__":
     import uvicorn
 
     logger.info("Starting Solar Budget application")
+    check_db_checklist()
     uvicorn.run(app, host="0.0.0.0", port=9000)
