@@ -6,7 +6,7 @@ import os
 load_dotenv()
 
 SOLCAST_URL = "https://api.solcast.com.au/rooftop_sites/6803-0207-f7d6-3a1f/forecasts"
-PSE_URL = "https://api.raporty.pse.pl/api/rce-pln"
+PSE_URL = "https://v1.api.raporty.pse.pl/api/rce-pln"
 
 def get_solcast_data():
     params = {
