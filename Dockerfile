@@ -20,11 +20,11 @@ RUN mkdir -p /app/logs /app/templates /app/static \
     && chown -R appuser:appuser /app \
     && chmod -R 755 /app
 
-# Switch to non-root user
-USER appuser
-
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8000
