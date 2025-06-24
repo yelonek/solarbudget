@@ -24,6 +24,7 @@ from sqlalchemy.orm import sessionmaker
 import sqlite3
 import pytz
 import sys
+from api_handlers import get_pse_data
 
 # Set up logging
 logging.basicConfig(
@@ -519,27 +520,13 @@ def get_pse_prices():
         if should_fetch_new:
             # Fetch new data
             logger.info("Fetching new PSE data")
-            today = current_time.strftime("%Y-%m-%d")
-            tomorrow = (current_time + timedelta(days=1)).strftime("%Y-%m-%d")
-
+            today = current_time.date()
+            tomorrow = (current_time + timedelta(days=1)).date()
             try:
-                # Fetch today's data
-                url = (
-                    f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{today}'"
-                )
-                logger.info(f"Fetching PSE data for {today}")
-                response = requests.get(url, headers={"Accept": "application/json"})
-                response.raise_for_status()
-
-                data = response.json()
-                logger.debug(f"PSE API response: {data}")
-
-                if not isinstance(data, dict) or "value" not in data:
-                    logger.error(f"Unexpected PSE API response format: {type(data)}")
-                    return latest_data.data if latest_data else []
-
+                # Fetch today's data przez api_handlers.get_pse_data
+                data_today = get_pse_data(today)
                 prices = []
-                for item in data["value"]:
+                for item in data_today:
                     try:
                         if not isinstance(item, dict):
                             continue
@@ -554,35 +541,27 @@ def get_pse_prices():
                         logger.error(f"Error processing PSE item: {e}, item: {item}")
                         continue
 
-                # After 16:00, also fetch tomorrow's data
+                # After 16:00, also fetch tomorrow's data przez api_handlers.get_pse_data
                 if current_time.hour >= 16:
-                    tomorrow_url = f"https://api.raporty.pse.pl/api/rce-pln?$filter=doba eq '{tomorrow}'"
-                    logger.info(f"Fetching PSE data for {tomorrow}")
-                    tomorrow_response = requests.get(
-                        tomorrow_url, headers={"Accept": "application/json"}
-                    )
-                    tomorrow_response.raise_for_status()
-
-                    tomorrow_data = tomorrow_response.json()
-                    if isinstance(tomorrow_data, dict) and "value" in tomorrow_data:
-                        for item in tomorrow_data["value"]:
-                            try:
-                                if not isinstance(item, dict):
-                                    continue
-                                dt = parse_pse_datetime(
-                                    item["doba"], item["udtczas_oreb"]
-                                )
-                                prices.append(
-                                    {
-                                        "datetime": dt.isoformat(),
-                                        "price": float(item["rce_pln"]),
-                                    }
-                                )
-                            except (KeyError, ValueError) as e:
-                                logger.error(
-                                    f"Error processing PSE tomorrow item: {e}, item: {item}"
-                                )
+                    data_tomorrow = get_pse_data(tomorrow)
+                    for item in data_tomorrow:
+                        try:
+                            if not isinstance(item, dict):
                                 continue
+                            dt = parse_pse_datetime(
+                                item["doba"], item["udtczas_oreb"]
+                            )
+                            prices.append(
+                                {
+                                    "datetime": dt.isoformat(),
+                                    "price": float(item["rce_pln"]),
+                                }
+                            )
+                        except (KeyError, ValueError) as e:
+                            logger.error(
+                                f"Error processing PSE tomorrow item: {e}, item: {item}"
+                            )
+                            continue
 
                 if not prices:
                     logger.error("No valid price data found in PSE API response")
@@ -598,7 +577,7 @@ def get_pse_prices():
                 )
                 return prices
 
-            except requests.exceptions.RequestException as e:
+            except Exception as e:
                 logger.error(f"Error fetching PSE data: {e}")
                 return latest_data.data if latest_data else []
 
