@@ -65,10 +65,6 @@ else:
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 
-# Create tables if they don't exist
-Base.metadata.create_all(engine)
-
-
 class SolcastData(Base):
     __tablename__ = "solcast_data"
 
@@ -96,29 +92,29 @@ class PSEData(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# Create tables if they don't exist - moved after model definitions
+Base.metadata.create_all(engine)
+
+
 def check_database_health():
     """Check database health on startup."""
     try:
         # Check if database file exists
-        db_file = (
-            os.path.abspath(db_file)
-            if "db_file" in locals()
-            else db_path.replace("sqlite:///", "")
-        )
-        logger.info(f"Checking database file: {db_file}")
-        if os.path.exists(db_file):
-            logger.info(f"Database file exists at {db_file}")
+        db_file_path = db_path.replace("sqlite:///", "")
+        logger.info(f"Checking database file: {db_file_path}")
+        if os.path.exists(db_file_path):
+            logger.info(f"Database file exists at {db_file_path}")
             logger.info(
-                f"Database file permissions: {oct(os.stat(db_file).st_mode)[-3:]}"
+                f"Database file permissions: {oct(os.stat(db_file_path).st_mode)[-3:]}"
             )
-            logger.info(f"Database file size: {os.path.getsize(db_file)} bytes")
+            logger.info(f"Database file size: {os.path.getsize(db_file_path)} bytes")
         else:
-            logger.error(f"Database file does not exist at {db_file}")
+            logger.error(f"Database file does not exist at {db_file_path}")
             return False
 
         # Check using raw SQLite first
         logger.info("Checking database using raw SQLite...")
-        conn = sqlite3.connect(db_file)
+        conn = sqlite3.connect(db_file_path)
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*), MIN(timestamp), MAX(timestamp) FROM solcast_data")
         count, min_ts, max_ts = cur.fetchone()
@@ -173,7 +169,7 @@ def check_database_health():
                     f"Latest record from SQLAlchemy: id={record.id}, timestamp={record.timestamp}"
                 )
                 logger.info(
-                    f"Data type: {type(record.data)}, length: {len(record.data) if record.data else 0}"
+                    f"Data type: {type(record.data)}, length: {len(record.data) if isinstance(record.data, (list, dict)) else 'N/A'}"
                 )
                 logger.info(
                     f"Data sample: {str(record.data)[:100] if record.data else None}"
@@ -223,6 +219,9 @@ pse_cache = TTLCache(maxsize=100, ttl=86400)  # 24 hour cache for PSE data
 
 def get_solcast_data():
     session = Session()
+    latest_data = None
+    previous_data = None
+    
     try:
         # Get all recent records, ordered by timestamp
         logger.info("Querying database for recent records")
@@ -234,8 +233,6 @@ def get_solcast_data():
         )
 
         logger.info(f"Found {len(recent_records)} recent records")
-        latest_data = None
-        previous_data = None
 
         if recent_records:
             # Validate data format
@@ -367,9 +364,13 @@ def get_solcast_data():
         else:
             # Use cached data
             logger.info("Using cached Solcast data from database")
-            df = pd.DataFrame.from_records(latest_data.data_json)
-            df["period_end"] = pd.to_datetime(df["period_end"])
-            df = df.set_index("period_end")
+            if latest_data:
+                df = pd.DataFrame.from_records(latest_data.data_json)
+                df["period_end"] = pd.to_datetime(df["period_end"])
+                df = df.set_index("period_end")
+            else:
+                logger.error("No cached data available")
+                return pd.DataFrame()
 
         # Check for missing morning data regardless of data source
         earliest_time = df.index.min()
@@ -471,7 +472,7 @@ def get_pse_prices():
             elif current_time.hour >= 16:
                 tomorrow = (current_time + timedelta(days=1)).date()
                 cached_dates = {
-                    datetime.fromisoformat(item["datetime"]).date()
+                    datetime.fromisoformat(str(item["datetime"])).date()
                     for item in latest_data.data
                 }
                 if tomorrow not in cached_dates:
@@ -489,7 +490,7 @@ def get_pse_prices():
                 for item in latest_data.data:
                     try:
                         # Parse the datetime string
-                        dt_str = item["datetime"]
+                        dt_str = str(item["datetime"])
                         if " - " in dt_str:  # Handle old format
                             # Split into date and time parts
                             parts = dt_str.split("-", 3)
@@ -526,31 +527,12 @@ def get_pse_prices():
                 # Fetch today's data przez api_handlers.get_pse_data
                 data_today = get_pse_data(today)
                 prices = []
-                for item in data_today:
-                    try:
-                        if not isinstance(item, dict):
-                            continue
-                        dt = parse_pse_datetime(item["doba"], item["udtczas_oreb"])
-                        prices.append(
-                            {
-                                "datetime": dt.isoformat(),
-                                "price": float(item["rce_pln"]),
-                            }
-                        )
-                    except (KeyError, ValueError) as e:
-                        logger.error(f"Error processing PSE item: {e}, item: {item}")
-                        continue
-
-                # After 16:00, also fetch tomorrow's data przez api_handlers.get_pse_data
-                if current_time.hour >= 16:
-                    data_tomorrow = get_pse_data(tomorrow)
-                    for item in data_tomorrow:
+                if data_today:
+                    for item in data_today:
                         try:
                             if not isinstance(item, dict):
                                 continue
-                            dt = parse_pse_datetime(
-                                item["doba"], item["udtczas_oreb"]
-                            )
+                            dt = parse_pse_datetime(item["doba"], item["udtczas_oreb"])
                             prices.append(
                                 {
                                     "datetime": dt.isoformat(),
@@ -558,10 +540,31 @@ def get_pse_prices():
                                 }
                             )
                         except (KeyError, ValueError) as e:
-                            logger.error(
-                                f"Error processing PSE tomorrow item: {e}, item: {item}"
-                            )
+                            logger.error(f"Error processing PSE item: {e}, item: {item}")
                             continue
+
+                # After 16:00, also fetch tomorrow's data przez api_handlers.get_pse_data
+                if current_time.hour >= 16:
+                    data_tomorrow = get_pse_data(tomorrow)
+                    if data_tomorrow:
+                        for item in data_tomorrow:
+                            try:
+                                if not isinstance(item, dict):
+                                    continue
+                                dt = parse_pse_datetime(
+                                    item["doba"], item["udtczas_oreb"]
+                                )
+                                prices.append(
+                                    {
+                                        "datetime": dt.isoformat(),
+                                        "price": float(item["rce_pln"]),
+                                    }
+                                )
+                            except (KeyError, ValueError) as e:
+                                logger.error(
+                                    f"Error processing PSE tomorrow item: {e}, item: {item}"
+                                )
+                                continue
 
                 if not prices:
                     logger.error("No valid price data found in PSE API response")
@@ -670,19 +673,19 @@ async def index(request: Request):
     prices_today = [
         price
         for price in prices
-        if datetime.fromisoformat(price["datetime"]).astimezone(local_tz).date()
+        if datetime.fromisoformat(str(price["datetime"])).astimezone(local_tz).date()
         == today
     ]
     prices_tomorrow = [
         price
         for price in prices
-        if datetime.fromisoformat(price["datetime"]).astimezone(local_tz).date()
+        if datetime.fromisoformat(str(price["datetime"])).astimezone(local_tz).date()
         == tomorrow
     ]
 
     # Sort prices by datetime to ensure correct ordering
-    prices_today.sort(key=lambda x: x["datetime"])
-    prices_tomorrow.sort(key=lambda x: x["datetime"])
+    prices_today.sort(key=lambda x: str(x["datetime"]))
+    prices_tomorrow.sort(key=lambda x: str(x["datetime"]))
 
     # Find current price (closest to current time)
     current_time = datetime.now(local_tz)
@@ -694,7 +697,7 @@ async def index(request: Request):
         time_diffs = [
             abs(
                 (
-                    datetime.fromisoformat(p["datetime"]).astimezone(local_tz)
+                    datetime.fromisoformat(str(p["datetime"])).astimezone(local_tz)
                     - current_hour
                 ).total_seconds()
             )
