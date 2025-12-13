@@ -65,6 +65,7 @@ else:
 Base = declarative_base()
 Session = sessionmaker(bind=engine)
 
+
 class SolcastData(Base):
     __tablename__ = "solcast_data"
 
@@ -221,7 +222,7 @@ def get_solcast_data():
     session = Session()
     latest_data = None
     previous_data = None
-    
+
     try:
         # Get all recent records, ordered by timestamp
         logger.info("Querying database for recent records")
@@ -540,7 +541,9 @@ def get_pse_prices():
                                 }
                             )
                         except (KeyError, ValueError) as e:
-                            logger.error(f"Error processing PSE item: {e}, item: {item}")
+                            logger.error(
+                                f"Error processing PSE item: {e}, item: {item}"
+                            )
                             continue
 
                 # After 16:00, also fetch tomorrow's data przez api_handlers.get_pse_data
@@ -595,7 +598,6 @@ def calculate_energy_value(solar_data_df, prices):
     # Clean datetime strings - handle both formats
     def clean_datetime(dt_str):
         if " - " in dt_str:
-            # Handle old format with time range
             dt_str = dt_str.split(" - ")[0]
         return dt_str
 
@@ -605,7 +607,7 @@ def calculate_energy_value(solar_data_df, prices):
     prices_df["datetime"] = pd.to_datetime(prices_df["datetime"]).dt.tz_localize(
         "Europe/Warsaw"
     )
-    prices_df = prices_df.set_index("datetime")
+    prices_df = prices_df.set_index("datetime").sort_index()
 
     # Ensure solar data is in the same timezone
     if solar_data_df.index.tz is None:
@@ -613,13 +615,18 @@ def calculate_energy_value(solar_data_df, prices):
     elif str(solar_data_df.index.tz) != "Europe/Warsaw":
         solar_data_df.index = solar_data_df.index.tz_convert("Europe/Warsaw")
 
-    # Resample prices to 15-min intervals to match solar data
-    prices_df = prices_df.resample("15min").ffill()
+    # Compute hourly-average prices
+    hourly_avg_prices = prices_df.resample("H")["price"].mean()
 
-    # Calculate value (PLN)
-    # Convert MWh price to kWh and multiply by production
+    # Map hourly-average price to each 15-min bin using the hour of that bin
+    hour_index = solar_data_df.index.floor("H")
+    mapped_hourly_price = hourly_avg_prices.reindex(hour_index).values
+
+    # Calculate value (PLN) using hourly-average price
+    # Price is in PLN/MWh; convert to PLN/kWh and multiply by 0.25h per 15-min bin
+    solar_data_df["hourly_price"] = mapped_hourly_price
     solar_data_df["value"] = (
-        solar_data_df["pv_estimate"] * prices_df["price"] / 1000 * 0.25
+        solar_data_df["pv_estimate"] * (solar_data_df["hourly_price"] / 1000.0) * 0.25
     )
 
     return solar_data_df
@@ -686,6 +693,40 @@ async def index(request: Request):
     # Sort prices by datetime to ensure correct ordering
     prices_today.sort(key=lambda x: str(x["datetime"]))
     prices_tomorrow.sort(key=lambda x: str(x["datetime"]))
+
+    # Build hourly-average price series for today and tomorrow (local time)
+    prices_today_hourly_avg = []
+    prices_tomorrow_hourly_avg = []
+    prices_df_all = pd.DataFrame(prices)
+    if not prices_df_all.empty:
+
+        def _clean_dt(dt_str):
+            s = str(dt_str)
+            if " - " in s:
+                s = s.split(" - ")[0]
+            return s
+
+        prices_df_all["datetime"] = prices_df_all["datetime"].apply(_clean_dt)
+        prices_df_all["datetime"] = pd.to_datetime(
+            prices_df_all["datetime"]
+        ).dt.tz_localize("Europe/Warsaw")
+        prices_df_all = prices_df_all.set_index("datetime").sort_index()
+        hourly_avg_all = prices_df_all.resample("H")["price"].mean()
+
+        # Helper to extract one day's hourly averages
+        def hourly_for_day(day_date):
+            start = pd.Timestamp(day_date, tz=local_tz).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            end = start + pd.Timedelta(days=1)
+            day_series = hourly_avg_all.loc[start : end - pd.Timedelta(seconds=1)]
+            return [
+                {"datetime": ts.isoformat(), "price": float(val)}
+                for ts, val in day_series.items()
+            ]
+
+        prices_today_hourly_avg = hourly_for_day(today)
+        prices_tomorrow_hourly_avg = hourly_for_day(tomorrow)
 
     # Find current price (closest to current time)
     current_time = datetime.now(local_tz)
@@ -764,6 +805,8 @@ async def index(request: Request):
             "solar_data_tomorrow": solar_data_tomorrow,
             "prices_today": prices_today,
             "prices_tomorrow": prices_tomorrow,
+            "prices_today_hourly_avg": prices_today_hourly_avg,
+            "prices_tomorrow_hourly_avg": prices_tomorrow_hourly_avg,
             "daily_totals": daily_totals_dict,
             "current_price": current_price,
             "produced_energy": produced_energy,
@@ -773,6 +816,23 @@ async def index(request: Request):
             "remaining_energy10": remaining_energy10,
             "remaining_energy90": remaining_energy90,
             "current_time": datetime.now(local_tz),
+            # Cumulative value series for charts
+            "cumulative_value_today": [
+                {"datetime": ts.isoformat(), "value_pln_cum": float(val)}
+                for ts, val in (
+                    solar_data[solar_data.index.tz_convert(local_tz).date == today][
+                        "value"
+                    ].cumsum()
+                ).items()
+            ],
+            "cumulative_value_tomorrow": [
+                {"datetime": ts.isoformat(), "value_pln_cum": float(val)}
+                for ts, val in (
+                    solar_data[solar_data.index.tz_convert(local_tz).date == tomorrow][
+                        "value"
+                    ].cumsum()
+                ).items()
+            ],
         },
     )
 
@@ -821,14 +881,21 @@ def check_db_checklist():
         row = cur.fetchone()
         if row:
             if not isinstance(row[2], (str, bytes)):
-                print("CHECK: Kolumna 'data' w solcast_data nie jest typu tekstowego ... ERROR")
+                print(
+                    "CHECK: Kolumna 'data' w solcast_data nie jest typu tekstowego ... ERROR"
+                )
             else:
                 import json
+
                 try:
                     json.loads(row[2])
-                    print("CHECK: Kolumna 'data' w solcast_data ma poprawny format JSON ... OK")
+                    print(
+                        "CHECK: Kolumna 'data' w solcast_data ma poprawny format JSON ... OK"
+                    )
                 except Exception as e:
-                    print(f"CHECK: Kolumna 'data' w solcast_data nie jest poprawnym JSON ... ERROR: {e}")
+                    print(
+                        f"CHECK: Kolumna 'data' w solcast_data nie jest poprawnym JSON ... ERROR: {e}"
+                    )
         else:
             print("CHECK: Brak danych w solcast_data (nie sprawdzam formatu) ... OK")
     except Exception as e:

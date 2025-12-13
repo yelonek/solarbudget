@@ -14,6 +14,85 @@
     <button id="fetch-data">Fetch Data</button>
     <div id="error-message" style="color: red;"></div>
     <canvas id="energyChart"></canvas>
-    <script src="app.js"></script>
+    <script>
+      window.__DATA__ = {
+        pricesToday: {{ prices_today | tojson | safe }},
+        pricesTomorrow: {{ prices_tomorrow | tojson | safe }},
+        pricesTodayHourlyAvg: {{ prices_today_hourly_avg | tojson | safe }},
+        pricesTomorrowHourlyAvg: {{ prices_tomorrow_hourly_avg | tojson | safe }},
+        cumulativeValueToday: {{ cumulative_value_today | tojson | safe }},
+        cumulativeValueTomorrow: {{ cumulative_value_tomorrow | tojson | safe }}
+      };
+
+      const tzParse = (iso) => new Date(iso);
+
+      const d = window.__DATA__;
+      const price15m = d.pricesToday.map(p => ({ x: tzParse(p.datetime), y: p.price }));
+      const priceHourly = d.pricesTodayHourlyAvg.map(p => ({ x: tzParse(p.datetime), y: p.price }));
+      const valueCum = d.cumulativeValueToday.map(v => ({ x: tzParse(v.datetime), y: v.value_pln_cum }));
+
+      const ctx = document.getElementById('energyChart').getContext('2d');
+      const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          datasets: [
+            {
+              label: 'Price 15m (PLN/MWh)',
+              data: price15m,
+              borderColor: '#1f77b4',
+              backgroundColor: 'rgba(31,119,180,0.1)',
+              yAxisID: 'y',
+              pointRadius: 0,
+              tension: 0
+            },
+            {
+              label: 'Price hourly avg (PLN/MWh)',
+              data: priceHourly,
+              borderColor: '#ff7f0e',
+              backgroundColor: 'rgba(255,127,14,0.1)',
+              yAxisID: 'y',
+              pointRadius: 2,
+              showLine: true,
+              stepped: true
+            },
+            {
+              label: 'Cumulative value (PLN)',
+              data: valueCum,
+              borderColor: '#2ca02c',
+              backgroundColor: 'rgba(44,160,44,0.1)',
+              yAxisID: 'y1',
+              pointRadius: 0,
+              tension: 0
+            }
+          ]
+        },
+        options: {
+          parsing: false,
+          responsive: true,
+          scales: {
+            x: {
+              type: 'time',
+              time: { unit: 'hour' }
+            },
+            y: {
+              type: 'linear',
+              position: 'left',
+              title: { display: true, text: 'PLN/MWh' }
+            },
+            y1: {
+              type: 'linear',
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: 'PLN (cum)' }
+            }
+          },
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: { mode: 'index', intersect: false }
+          },
+          interaction: { mode: 'index', intersect: false }
+        }
+      });
+    </script>
 </body>
 </html>
