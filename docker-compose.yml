@@ -8,6 +8,7 @@ services:
     environment:
       - SOLCAST_API_KEY=${SOLCAST_API_KEY}
       - SOLCAST_SITE_ID=${SOLCAST_SITE_ID}
+      - SOLCAST_PROXY_URL=${SOLCAST_PROXY_URL}
       - CACHE_TIMEOUT=${CACHE_TIMEOUT}
       - APP_MODE=${APP_MODE}
     volumes:

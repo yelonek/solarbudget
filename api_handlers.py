@@ -5,15 +5,25 @@ import os
 
 load_dotenv()
 
-SOLCAST_URL = "https://api.solcast.com.au/rooftop_sites/6803-0207-f7d6-3a1f/forecasts"
 PSE_URL = "https://v1.api.raporty.pse.pl/api/rce-pln"
 
 def get_solcast_data():
-    params = {
-        "format": "json",
-        "api_key": os.getenv("SOLCAST_API_KEY")
-    }
-    response = requests.get(SOLCAST_URL, params=params)
+    proxy_url = os.getenv("SOLCAST_PROXY_URL")
+    
+    if proxy_url:
+        # Use proxy service
+        url = f"{proxy_url.rstrip('/')}/forecasts"
+        params = {"format": "json"}
+    else:
+        # Use direct Solcast API
+        site_id = os.getenv("SOLCAST_SITE_ID", "6803-0207-f7d6-3a1f")
+        url = f"https://api.solcast.com.au/rooftop_sites/{site_id}/forecasts"
+        params = {
+            "format": "json",
+            "api_key": os.getenv("SOLCAST_API_KEY")
+        }
+    
+    response = requests.get(url, params=params)
     if response.status_code == 200:
         return response.json()['forecasts']
     return None

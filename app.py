@@ -274,13 +274,26 @@ def get_solcast_data():
         if should_fetch_new:
             # Fetch new data from API
             logger.info("Fetching new Solcast data")
-            site_id = os.getenv("SOLCAST_SITE_ID", "6803-0207-f7d6-3a1f")
-            url = f"https://api.solcast.com.au/rooftop_sites/{site_id}/forecasts"
-            params = {"format": "json"}
-            headers = {
-                "Authorization": f"Bearer {os.getenv('SOLCAST_API_KEY')}",
-                "Accept": "application/json",
-            }
+            proxy_url = os.getenv("SOLCAST_PROXY_URL")
+            
+            if proxy_url:
+                # Use proxy service
+                url = f"{proxy_url.rstrip('/')}/forecasts"
+                params = {"format": "json"}
+                headers = {
+                    "Accept": "application/json",
+                }
+                logger.info(f"Using Solcast proxy: {url}")
+            else:
+                # Use direct Solcast API
+                site_id = os.getenv("SOLCAST_SITE_ID", "6803-0207-f7d6-3a1f")
+                url = f"https://api.solcast.com.au/rooftop_sites/{site_id}/forecasts"
+                params = {"format": "json"}
+                headers = {
+                    "Authorization": f"Bearer {os.getenv('SOLCAST_API_KEY')}",
+                    "Accept": "application/json",
+                }
+                logger.info(f"Using direct Solcast API: {url}")
 
             try:
                 response = requests.get(url, params=params, headers=headers)
