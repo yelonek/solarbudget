@@ -274,26 +274,24 @@ def get_solcast_data():
         if should_fetch_new:
             # Fetch new data from API
             logger.info("Fetching new Solcast data")
+            site_id = os.getenv("SOLCAST_SITE_ID", "6803-0207-f7d6-3a1f")
             proxy_url = os.getenv("SOLCAST_PROXY_URL")
             
+            # Use proxy if set, otherwise use direct Solcast API
+            # Proxy is drop-in replacement - same path, headers, and params
             if proxy_url:
-                # Use proxy service
-                url = f"{proxy_url.rstrip('/')}/forecasts"
-                params = {"format": "json"}
-                headers = {
-                    "Accept": "application/json",
-                }
-                logger.info(f"Using Solcast proxy: {url}")
+                base_url = proxy_url.rstrip('/')
+                logger.info(f"Using Solcast proxy: {base_url}")
             else:
-                # Use direct Solcast API
-                site_id = os.getenv("SOLCAST_SITE_ID", "6803-0207-f7d6-3a1f")
-                url = f"https://api.solcast.com.au/rooftop_sites/{site_id}/forecasts"
-                params = {"format": "json"}
-                headers = {
-                    "Authorization": f"Bearer {os.getenv('SOLCAST_API_KEY')}",
-                    "Accept": "application/json",
-                }
-                logger.info(f"Using direct Solcast API: {url}")
+                base_url = "https://api.solcast.com.au"
+                logger.info(f"Using direct Solcast API: {base_url}")
+            
+            url = f"{base_url}/rooftop_sites/{site_id}/forecasts"
+            params = {"format": "json"}
+            headers = {
+                "Authorization": f"Bearer {os.getenv('SOLCAST_API_KEY')}",
+                "Accept": "application/json",
+            }
 
             try:
                 response = requests.get(url, params=params, headers=headers)
