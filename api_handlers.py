@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-PSE_URL = "https://v1.api.raporty.pse.pl/api/rce-pln"
+PSE_URL = "https://api.raporty.pse.pl/api/rce-pln"
 
 
 def get_pse_data(date_obj):

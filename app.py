@@ -23,7 +23,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import sqlite3
 import pytz
-import sys
 from api_handlers import get_pse_data
 
 # Set up logging
@@ -36,7 +35,9 @@ os.makedirs("logs", exist_ok=True)
 
 # Set up file handler
 file_handler = RotatingFileHandler(
-    "logs/app.log", maxBytes=1024 * 1024, backupCount=5  # 1MB
+    "logs/app.log",
+    maxBytes=1024 * 1024,
+    backupCount=5,  # 1MB
 )
 file_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -276,16 +277,16 @@ def get_solcast_data():
             logger.info("Fetching new Solcast data")
             site_id = os.getenv("SOLCAST_SITE_ID", "6803-0207-f7d6-3a1f")
             proxy_url = os.getenv("SOLCAST_PROXY_URL")
-            
+
             # Use proxy if set, otherwise use direct Solcast API
             # Proxy is drop-in replacement - same path, headers, and params
             if proxy_url:
-                base_url = proxy_url.rstrip('/')
+                base_url = proxy_url.rstrip("/")
                 logger.info(f"Using Solcast proxy: {base_url}")
             else:
                 base_url = "https://api.solcast.com.au"
                 logger.info(f"Using direct Solcast API: {base_url}")
-            
+
             url = f"{base_url}/rooftop_sites/{site_id}/forecasts"
             params = {"format": "json"}
             headers = {
@@ -460,18 +461,14 @@ def get_pse_prices():
         latest_data = session.query(PSEData).order_by(PSEData.timestamp.desc()).first()
         current_time = datetime.now()
 
-        def parse_pse_datetime(date_str, time_str):
-            """Parse PSE datetime from separate date and time strings."""
+        def parse_pse_datetime(dtime_str):
+            """Parse PSE datetime from v2 API format (dtime is already a full datetime string)."""
             try:
-                # Clean time string - take only the start time if it's a range
-                if " - " in time_str:
-                    time_str = time_str.split(" - ")[0].strip()
-
-                # Create datetime object
-                dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                # v2 API returns dtime as full datetime string: "2026-01-14 00:15:00"
+                dt = datetime.strptime(dtime_str, "%Y-%m-%d %H:%M:%S")
                 return dt
             except Exception as e:
-                logger.error(f"Error parsing datetime: {date_str} {time_str} - {e}")
+                logger.error(f"Error parsing datetime: {dtime_str} - {e}")
                 raise
 
         should_fetch_new = False
@@ -544,7 +541,7 @@ def get_pse_prices():
                         try:
                             if not isinstance(item, dict):
                                 continue
-                            dt = parse_pse_datetime(item["doba"], item["udtczas_oreb"])
+                            dt = parse_pse_datetime(item["dtime"])
                             prices.append(
                                 {
                                     "datetime": dt.isoformat(),
@@ -565,9 +562,7 @@ def get_pse_prices():
                             try:
                                 if not isinstance(item, dict):
                                     continue
-                                dt = parse_pse_datetime(
-                                    item["doba"], item["udtczas_oreb"]
-                                )
+                                dt = parse_pse_datetime(item["dtime"])
                                 prices.append(
                                     {
                                         "datetime": dt.isoformat(),
